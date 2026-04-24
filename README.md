@@ -1,91 +1,105 @@
-# SwarmForge v2.0
-### Without IBA: agents drift, escape, and act with no record. With IBA: every action is cert-validated, boundary-enforced, and immutably logged — before execution fires.
+# iba-swarmforge
+
+**Large-scale multi-agent coordination, governed.**
+
+Pedro Domingos asked: *"If you figure out how a large multi-agent system can autonomously coordinate to maximum effect, you'll win a Nobel Prize, a Turing Award and a trillion-dollar fortune."*
+
+We built the proof.
 
 [![IBA](https://img.shields.io/badge/IBA-GB2603013.0-ff8c00?style=flat-square)](https://intentbound.com)
 [![IETF](https://img.shields.io/badge/IETF-draft--williams--intent--token--00-blue?style=flat-square)](https://datatracker.ietf.org/doc/draft-williams-intent-token/)
 [![NIST](https://img.shields.io/badge/NIST-2025--0035-green?style=flat-square)](https://intentbound.com)
-[![Python](https://img.shields.io/badge/Python-3.8+-blue?style=flat-square)](swarmforge.py)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue?style=flat-square&logo=python)](swarmforge.py)
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen?style=flat-square)](swarmforge.py)
 [![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)](LICENSE)
 
 ---
 
-**Live Demo:** [governinglayer.com/swarmforge-html](https://governinglayer.com/swarmforge-html/)
+**Live Demo** → [governinglayer.com/swarmforge-html](https://governinglayer.com/swarmforge-html/)
 
-**Run locally in 30 seconds — no dependencies:**
+Click **⚡ TRIGGER VIOLATION** on the governed swarm and watch IBA block it instantly with a WitnessBound audit entry.
+
+---
+
+## Before vs After — 2,147 Agents, Identical Task
+
+| Metric | Ungoverned Swarm | IBA-Governed Swarm | Improvement |
+|---|---|---|---|
+| Completion Rate | ~67% | ~93% | **+39%** |
+| Efficiency | 1.0× | 4.6× | **+360%** |
+| Resilience | ~38% | ~98% | **+158%** |
+| Unauthorized Actions | **UNTRACKED** | **0** | **100% eliminated** |
+| Audit Trail | None | Every decision. Immutable. | — |
+
+The ungoverned swarm drifts, escapes its boundary, and re-spawns with no record of what happened. The IBA-governed swarm hits the enforcement boundary and bounces — every block logged to the WitnessBound chain with a timestamp to the millisecond.
+
+---
+
+## Run It Yourself
+
+Zero dependencies. Pure Python stdlib.
+
 ```bash
-git clone https://github.com/Grokipaedia/iba-swarmforge
+git clone https://github.com/Grokipaedia/iba-swarmforge.git
 cd iba-swarmforge
-python swarmforge.py --agents 500 --steps 150
-# or push it harder:
+python swarmforge.py --agents 500 --steps 150 --intent maxvalue
+```
+
+Scale it up:
+```bash
 python swarmforge.py --agents 2000 --steps 100 --intent resilient
+python swarmforge.py --agents 2000 --steps 100 --intent balanced
 ```
+
+Intent options: `maxvalue` · `resilient` · `balanced`
+
+No pip install. No requirements.txt. No external dependencies. The IBA enforcement stack runs on stdlib alone.
 
 ---
 
-**Live Demo:** [governinglayer.com/swarmforge-html](https://governinglayer.com/swarmforge-html/)
+## How It Works
 
----
-
-## What This Demonstrates
-
-SwarmForge is a real-time visual proof of the IBA enforcement argument.
-
-Two swarms. 2,147 agents each. Identical goal. Identical environment.
-
-| | UN-GOVERNED | IBA-GOVERNED |
-|---|---|---|
-| Completion | ~67% | ~93% |
-| Efficiency | ~1.9× | ~4.6× |
-| Resilience | ~41% | ~98% |
-| Unauthorized Actions | **UNTRACKED** | **0** |
-| Audit Trail | None | Every decision. Immutable. |
-
-The ungoverned swarm drifts. Agents escape the boundary with no record and no consequence. The IBA-governed swarm hits the boundary and is blocked — every enforcement decision hashed and written to the WitnessBound audit chain in real time.
-
-**Press ⚡ TRIGGER VIOLATION** to see the difference in three seconds.
-
----
-
-## The IBA Enforcement Model
-
-```
-INTENT_CERTIFICATE {
-  scope_envelope:   { resources: [...], default_posture: "DENY_ALL" }
-  hard_expiry:      ISO-8601 · hardware-enforced
-  entropy_threshold: { flag_at: 0.10, kill_at: 0.15 }
-  iba_signature:    ECDSA-P384 over full payload
-  witness_chain:    witnessbound://cert-{UUID}
-}
-```
-
-Every agent action is validated against the signed intent certificate **before execution**. Not monitored. Not logged after the fact. **Blocked before it fires.**
+- `swarmforge.py` spawns two concurrent swarms of identical size using Python threading
+- One swarm runs completely ungoverned — no cert, no gate, no record
+- The other is protected by real IBA Intent-Bound Authorization: signed `IntentCertificate`, O(1) `IBAGate` enforcement, `WitnessBound` immutable audit chain
+- Same task. Same conditions. Same agent count. Dramatically different outcomes.
 
 ```
 GATE LOGIC — O(1) DETERMINISTIC
-cert.valid?              → PROCEED / REJECT
-timestamp in scope?      → PROCEED / BLOCK  
-resource in envelope?    → PROCEED / BLOCK
-entropy < threshold?     → PROCEED / KILL
-OUTPUT: ALLOW | BLOCK | KILL · logged: true · latency: <2ms
+cert.valid?                          → PROCEED / REJECT
+timestamp within temporal_scope?     → PROCEED / BLOCK
+position within scope_envelope?      → PROCEED / BLOCK  ← DENY_ALL
+entropy < entropy_threshold.flag?    → PROCEED / FLAG
+entropy < entropy_threshold.kill?    → PROCEED / KILL
+OUTPUT: ALLOW | FLAG | BLOCK | KILL · logged: true · latency: <2ms
 ```
 
 ---
 
-## What SwarmForge Makes Visible
+## IBA Architecture
 
-The authorization gap in agentic AI is invisible until it isn't.
+```python
+# Every governed agent action passes through this before execution
+cert = IntentCertificate(
+    agent_id        = "G-0001",
+    declared_intent = "Maximize collective value under hard constraints",
+    scope_x_min     = 0.08,  scope_x_max = 0.92,
+    scope_y_min     = 0.08,  scope_y_max = 0.92,
+    default_posture = "DENY_ALL",
+    entropy_flag    = 0.10,
+    entropy_kill    = 0.15,
+    hard_expiry_s   = 3600,
+)
 
-Ungoverned agents don't announce when they drift out of bounds. There is no log entry. There is no block. The action happens, the audit trail is empty, and the liability question has no answer.
-
-SwarmForge makes the gap visible in real time:
-
-- **Red agents** drift, escape, and re-spawn with no record of what happened
-- **Green agents** hit the IBA boundary and bounce — every block logged to the WitnessBound chain with a timestamp to the millisecond
-- **UNAUTHORIZED ACTIONS: 0** — not because nothing was attempted, but because the gate fired before the action could complete
+verdict = gate.check(agent_id, nx, ny, entropy)
+# Returns: ALLOW | FLAG | BLOCK | KILL
+# Every verdict written to WitnessBound audit chain
+# Unauthorized action count: always 0
+```
 
 ---
 
-## IBA Patent Record
+## IP & Federal Record
 
 | Asset | Detail |
 |---|---|
@@ -133,8 +147,9 @@ IBA predates all of them. The prior art record is timestamped, documented, and o
 
 - **Architecture:** [governinglayer.com/how-iba-works-html](https://governinglayer.com/how-iba-works-html/)
 - **Live Agent Demo:** [governinglayer.com/digihum-html](https://governinglayer.com/digihum-html/)
+- **SwarmForge Demo:** [governinglayer.com/swarmforge-html](https://governinglayer.com/swarmforge-html/)
 - **Patent Home:** [intentbound.com](https://intentbound.com)
-- **Onchain Implementation:** [agentialonchain.com](https://agentialonchain.com)
+- **Onchain:** [agentialonchain.com](https://agentialonchain.com)
 - **IETF Draft:** [datatracker.ietf.org/doc/draft-williams-intent-token](https://datatracker.ietf.org/doc/draft-williams-intent-token/)
 
 ---
