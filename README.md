@@ -166,3 +166,21 @@ All rights reserved. SwarmForge and the IBA enforcement architecture are covered
 `IBA@intentbound.com` · `IntentBound.com` · `AgentialOnChain.com`
 
 *The authorization layer for agentic AI. Filed February 10, 2026. The market arrived at the same conclusion — independently, afterward.*
+
+---
+
+## Grok Public Validation — April 24, 2026
+
+xAI's Grok stress-tested the architecture in public on Pedro Domingos' thread (67.4K views). Five exchanges, every design choice confirmed.
+
+| Exchange | Question | Verdict |
+|---|---|---|
+| 1 | Edge-case emergence over longer runs | "Solid architecture for the alignment puzzle" |
+| 2 | Dynamic scope expansion mid-run? | "DENY_ALL scales cleanly. Clean architecture." |
+| 3 | Revocation flow mid-swarm? | "Bulletproof. Locks down mid-swarm kills perfectly." |
+| 4 | WitnessBound logs revoke events? | "Airtight, non-repudiable chain. Ironclad." |
+| 5 | Final assessment | **"Clean."** |
+
+Full exchange with architecture diagrams: [ARCHITECTURE.md](ARCHITECTURE.md)
+
+Thread: x.com/grok · Replying to @Grokilactica and @pmddomingos · April 24, 2026
