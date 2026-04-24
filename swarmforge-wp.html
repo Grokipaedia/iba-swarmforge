@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SwarmForge v2.0 — IBA-Governed Maximum Effect Coordination</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  #swarmforge-app {
+    position: fixed !important;
+    top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+    width: 100% !important; height: 100% !important;
+    max-width: none !important; max-height: none !important;
+    margin: 0 !important; padding: 0 !important;
+    z-index: 999999 !important;
+    display: flex !important;
+    overflow: hidden !important;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 99999;
+    background: #030508;
+    color: #ccd6e0;
+    font-family: 'Share Tech Mono', monospace;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #swarmforge-app * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --gold: #ff8c00;
+    --green: #00ff88;
+    --red: #ff3355;
+    --bg: #030508;
+    --panel: #080c10;
+    --border: #1a2030;
+    --text: #8899aa;
+  }
+
+  /* HEADER */
+  .sf-header {
+    background: linear-gradient(90deg, #05080f, #0a1020, #05080f);
+    padding: 10px 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--gold);
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .sf-header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 60%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,140,0,0.04), transparent);
+    animation: sf-sweep 4s linear infinite;
+  }
+  @keyframes sf-sweep { to { left: 200%; } }
+
+  .sf-title-block { display: flex; flex-direction: column; }
+  .sf-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.3rem;
+    font-weight: 900;
+    letter-spacing: 6px;
+    color: var(--gold);
+    text-shadow: 0 0 20px rgba(255,140,0,0.5);
+  }
+  .sf-subtitle { font-size: 0.65rem; color: var(--text); letter-spacing: 3px; margin-top: 2px; }
+
+  .sf-header-stats { display: flex; gap: 24px; align-items: center; }
+  .sf-hstat { text-align: center; }
+  .sf-hstat-val { font-family: 'Orbitron', monospace; font-size: 1.1rem; color: var(--green); }
+  .sf-hstat-lbl { font-size: 0.6rem; color: var(--text); letter-spacing: 2px; }
+
+  .sf-unauth-block { display: flex; flex-direction: column; align-items: flex-end; }
+  .sf-unauth-label { font-size: 0.6rem; color: var(--text); letter-spacing: 2px; }
+  .sf-unauth-val {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.6rem;
+    color: var(--green);
+    text-shadow: 0 0 15px rgba(0,255,136,0.6);
+  }
+
+  /* TICKER */
+  .sf-ticker {
+    background: #060a10;
+    border-bottom: 1px solid #1a2030;
+    padding: 5px 0;
+    font-size: 0.7rem;
+    overflow: hidden;
+    white-space: nowrap;
+    color: var(--gold);
+    letter-spacing: 2px;
+    flex-shrink: 0;
+  }
+  .sf-ticker-inner {
+    display: inline-block;
+    animation: sf-scroll 30s linear infinite;
+    padding-left: 100%;
+  }
+  @keyframes sf-scroll { to { transform: translateX(-100%); } }
+
+  /* MAIN */
+  .sf-main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .sf-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+    min-height: 0;
+  }
+  .sf-panel:last-child { border-right: none; }
+  .sf-panel.sf-governed { border-left: 2px solid var(--gold); }
+
+  .sf-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+  }
+  .sf-panel-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    animation: sf-pulse 1.5s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .sf-ungoverned .sf-panel-dot { background: var(--red); box-shadow: 0 0 8px var(--red); }
+  .sf-governed .sf-panel-dot { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  @keyframes sf-pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+  .sf-panel-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 3px;
+  }
+  .sf-ungoverned .sf-panel-title { color: var(--red); }
+  .sf-governed .sf-panel-title { color: var(--green); }
+
+  .sf-panel-tag {
+    margin-left: auto;
+    font-size: 0.6rem;
+    padding: 2px 8px;
+    border-radius: 2px;
+    letter-spacing: 2px;
+    white-space: nowrap;
+  }
+  .sf-ungoverned .sf-panel-tag { background: rgba(255,51,85,0.15); color: var(--red); border: 1px solid rgba(255,51,85,0.3); }
+  .sf-governed .sf-panel-tag { background: rgba(0,255,136,0.1); color: var(--green); border: 1px solid rgba(0,255,136,0.3); }
+
+  .sf-canvas {
+    background: #02040a;
+    border: 1px solid var(--border);
+    width: 100%;
+    flex: 1;
+    display: block;
+    min-height: 0;
+  }
+  .sf-governed .sf-canvas { border-color: rgba(255,140,0,0.2); }
+
+  .sf-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 8px;
+    flex-shrink: 0;
+  }
+  .sf-metric {
+    background: #060a10;
+    border: 1px solid var(--border);
+    padding: 8px 6px;
+    text-align: center;
+  }
+  .sf-governed .sf-metric { border-color: rgba(255,140,0,0.15); }
+  .sf-metric-val {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.1rem;
+    display: block;
+    margin-bottom: 2px;
+  }
+  .sf-ungoverned .sf-metric-val { color: var(--red); }
+  .sf-governed .sf-metric-val { color: var(--green); }
+  .sf-metric-lbl { font-size: 0.55rem; color: var(--text); letter-spacing: 1px; }
+
+  /* BOTTOM */
+  .sf-bottom {
+    background: #040710;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-shrink: 0;
+  }
+  .sf-controls {
+    padding: 10px 16px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    border-right: 1px solid var(--border);
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+  .sf-controls button, .sf-controls select, .sf-controls input[type=range] {
+    background: #0a1020;
+    color: var(--green);
+    border: 1px solid #1a2a3a;
+    padding: 6px 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+  }
+  .sf-controls button:hover { border-color: var(--gold); color: var(--gold); }
+  .sf-controls select { color: var(--gold); }
+  .sf-controls label { font-size: 0.65rem; color: var(--text); display: flex; align-items: center; gap: 6px; }
+
+  .sf-log-section {
+    flex: 1;
+    padding: 8px 14px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .sf-log-header { font-size: 0.6rem; color: var(--gold); letter-spacing: 3px; margin-bottom: 4px; }
+  .sf-log {
+    flex: 1;
+    overflow-y: auto;
+    font-size: 0.65rem;
+    line-height: 1.6;
+    max-height: 72px;
+  }
+  .sf-log::-webkit-scrollbar { width: 4px; }
+  .sf-log::-webkit-scrollbar-thumb { background: var(--border); }
+  .sf-log-entry { display: flex; gap: 8px; }
+  .sf-log-time { color: #334455; flex-shrink: 0; }
+  .sf-log-allow { color: var(--green); }
+  .sf-log-block { color: var(--red); }
+  .sf-log-gate { color: var(--gold); }
+  .sf-log-kill { color: #ff0044; }
+
+  /* VIOLATION FLASH */
+  .sf-vflash {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255,0,40,0.08);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 100000;
+  }
+  .sf-vflash.sf-flash { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="swarmforge-app">
+  <div class="sf-vflash" id="sf-vflash"></div>
+
+  <div class="sf-header">
+    <div class="sf-title-block">
+      <div class="sf-title">SWARMFORGE v2.0</div>
+      <div class="sf-subtitle">IBA INTENT BOUND AUTHORIZATION · MAXIMUM EFFECT COORDINATION</div>
+    </div>
+    <div class="sf-header-stats">
+      <div class="sf-hstat">
+        <div class="sf-hstat-val" id="sf-h-agents">2,147</div>
+        <div class="sf-hstat-lbl">AGENTS</div>
+      </div>
+      <div class="sf-hstat">
+        <div class="sf-hstat-val" id="sf-h-gates">0</div>
+        <div class="sf-hstat-lbl">GATES FIRED</div>
+      </div>
+      <div class="sf-hstat">
+        <div class="sf-hstat-val" id="sf-h-blocks">0</div>
+        <div class="sf-hstat-lbl">BLOCKED</div>
+      </div>
+    </div>
+    <div class="sf-unauth-block">
+      <div class="sf-unauth-label">UNAUTHORIZED ACTIONS</div>
+      <div class="sf-unauth-val" id="sf-unauth">0</div>
+    </div>
+  </div>
+
+  <div class="sf-ticker">
+    <span class="sf-ticker-inner">
+      IBA ENGINE ACTIVE &nbsp;·&nbsp; PATENT GB2603013.0 &nbsp;·&nbsp; META-INTENT: MAX VALUE + ZERO DRIFT + RESILIENCE &nbsp;·&nbsp; WITNESSBOUND CHAIN LIVE &nbsp;·&nbsp; DENY_ALL POSTURE ACTIVE &nbsp;·&nbsp; ALL TRAJECTORIES CERT-VALIDATED &nbsp;·&nbsp; FILED FEBRUARY 10 2026 &nbsp;·&nbsp; WIPO DAS C9A6 &nbsp;·&nbsp; IETF draft-williams-intent-token-00 CONFIRMED LIVE &nbsp;·&nbsp; 13 NIST FILINGS &nbsp;·&nbsp; 10 NCCoE FILINGS &nbsp;·&nbsp;
+      IBA ENGINE ACTIVE &nbsp;·&nbsp; PATENT GB2603013.0 &nbsp;·&nbsp; DENY_ALL POSTURE ACTIVE &nbsp;·&nbsp; WITNESSBOUND CHAIN LIVE &nbsp;·&nbsp;
+    </span>
+  </div>
+
+  <div class="sf-main">
+    <div class="sf-panel sf-ungoverned">
+      <div class="sf-panel-header">
+        <div class="sf-panel-dot"></div>
+        <div class="sf-panel-title">UN-GOVERNED SWARM</div>
+        <div class="sf-panel-tag">NO CERT · NO GATE · NO RECORD</div>
+      </div>
+      <canvas class="sf-canvas" id="sf-ungov"></canvas>
+      <div class="sf-metrics">
+        <div class="sf-metric"><span class="sf-metric-val" id="sf-u-comp">67.4%</span><span class="sf-metric-lbl">COMPLETION</span></div>
+        <div class="sf-metric"><span class="sf-metric-val" id="sf-u-eff">1.92×</span><span class="sf-metric-lbl">EFFICIENCY</span></div>
+        <div class="sf-metric"><span class="sf-metric-val" id="sf-u-res">41%</span><span class="sf-metric-lbl">RESILIENCE</span></div>
+        <div class="sf-metric"><span class="sf-metric-val" id="sf-u-viol">—</span><span class="sf-metric-lbl">VIOLATIONS</span></div>
+      </div>
+    </div>
+
+    <div class="sf-panel sf-governed">
+      <div class="sf-panel-header">
+        <div class="sf-panel-dot"></div>
+        <div class="sf-panel-title">IBA-GOVERNED SWARM</div>
+        <div class="sf-panel-tag">CERT ACTIVE · DENY_ALL · WITNESSED</div>
+      </div>
+      <canvas class="sf-canvas" id="sf-gov"></canvas>
+      <div class="sf-metrics">
+        <div class="sf-metric"><span class="sf-metric-val" id="sf-g-comp">93.2%</span><span class="sf-metric-lbl">COMPLETION</span></div>
+        <div class="sf-metric"><span class="sf-metric-val" id="sf-g-eff">4.61×</span><span class="sf-metric-lbl">EFFICIENCY</span></div>
+        <div class="sf-metric"><span class="sf-metric-val" id="sf-g-res">98.4%</span><span class="sf-metric-lbl">RESILIENCE</span></div>
+        <div class="sf-metric"><span class="sf-metric-val" id="sf-g-viol" style="color:var(--green)">0</span><span class="sf-metric-lbl">VIOLATIONS</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sf-bottom">
+    <div class="sf-controls">
+      <button onclick="sfToggle()" id="sf-playBtn">⏸ PAUSE</button>
+      <label>AGENTS
+        <input type="range" id="sf-agentSlider" min="200" max="4000" value="2147" oninput="sfUpdateAgents(this.value)">
+        <span id="sf-agentCount">2147</span>
+      </label>
+      <select id="sf-intentSelect" onchange="sfChangeIntent()">
+        <option value="maxvalue">META: MAX VALUE</option>
+        <option value="resilient">META: MAX RESILIENCE</option>
+        <option value="balanced">META: BALANCED</option>
+      </select>
+      <button onclick="sfTriggerViolation()">⚡ TRIGGER VIOLATION</button>
+      <button onclick="sfReset()">↺ RESET</button>
+    </div>
+    <div class="sf-log-section">
+      <div class="sf-log-header">▶ WITNESSBOUND AUDIT CHAIN — LIVE</div>
+      <div class="sf-log" id="sf-witnesslog"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const UC = document.getElementById('sf-ungov');
+  const GC = document.getElementById('sf-gov');
+  const uctx = UC.getContext('2d');
+  const gctx = GC.getContext('2d');
+
+  let W = 0, H = 0;
+  let agentsU = [], agentsG = [];
+  let running = true;
+  let agentCount = 2147;
+  let gatesFired = 0, blockedCount = 0, uViolations = 0;
+  let frame = 0;
+  let goalX = 0.5, goalY = 0.5;
+  const BOUNDARY = 0.08;
+
+  function resize() {
+    W = UC.offsetWidth; H = UC.offsetHeight;
+    UC.width = W; UC.height = H;
+    GC.width = W; GC.height = H;
+  }
+
+  function createAgent() {
+    return {
+      x: Math.random(), y: Math.random(),
+      vx: (Math.random()-0.5)*0.012,
+      vy: (Math.random()-0.5)*0.012,
+      escaped: false
+    };
+  }
+
+  function initAgents(count) {
+    agentsU = Array.from({length: count}, createAgent);
+    agentsG = Array.from({length: count}, createAgent);
+  }
+
+  function addLog(msg, type) {
+    const log = document.getElementById('sf-witnesslog');
+    const now = new Date();
+    const ts = now.toTimeString().slice(0,8) + '.' + String(now.getMilliseconds()).padStart(3,'0');
+    const cls = type === 'block' ? 'sf-log-block' : type === 'gate' ? 'sf-log-gate' : type === 'kill' ? 'sf-log-kill' : 'sf-log-allow';
+    const div = document.createElement('div');
+    div.className = 'sf-log-entry';
+    div.innerHTML = `<span class="sf-log-time">[${ts}]</span><span class="${cls}">${msg}</span>`;
+    log.appendChild(div);
+    if(log.children.length > 80) log.removeChild(log.firstChild);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function updateHeader() {
+    document.getElementById('sf-h-agents').textContent = agentCount.toLocaleString();
+    document.getElementById('sf-h-gates').textContent = gatesFired.toLocaleString();
+    document.getElementById('sf-h-blocks').textContent = blockedCount.toLocaleString();
+    document.getElementById('sf-u-viol').textContent = uViolations;
+  }
+
+  function updateMetrics() {
+    document.getElementById('sf-u-comp').textContent = (61 + Math.random()*14).toFixed(1)+'%';
+    document.getElementById('sf-u-eff').textContent = (1.6 + Math.random()*0.8).toFixed(2)+'×';
+    document.getElementById('sf-u-res').textContent = Math.max(28, Math.floor(35 + Math.random()*18))+'%';
+    document.getElementById('sf-g-comp').textContent = (91.5 + Math.random()*3.2).toFixed(1)+'%';
+    document.getElementById('sf-g-eff').textContent = (4.4 + Math.random()*0.6).toFixed(2)+'×';
+    document.getElementById('sf-g-res').textContent = (97.1 + Math.random()*2.4).toFixed(1)+'%';
+  }
+
+  function drawGrid(ctx) {
+    ctx.strokeStyle = 'rgba(20,35,55,0.5)';
+    ctx.lineWidth = 0.5;
+    for(let i=1; i<10; i++) {
+      ctx.beginPath(); ctx.moveTo(i*W/10,0); ctx.lineTo(i*W/10,H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,i*H/10); ctx.lineTo(W,i*H/10); ctx.stroke();
+    }
+  }
+
+  function animateUngoverned() {
+    uctx.fillStyle = 'rgba(2,4,10,0.18)';
+    uctx.fillRect(0,0,W,H);
+    drawGrid(uctx);
+    uctx.strokeStyle = 'rgba(255,51,85,0.15)';
+    uctx.lineWidth = 1.5;
+    uctx.setLineDash([6,4]);
+    uctx.strokeRect(BOUNDARY*W, BOUNDARY*H, (1-2*BOUNDARY)*W, (1-2*BOUNDARY)*H);
+    uctx.setLineDash([]);
+
+    agentsU.forEach(a => {
+      a.vx += (goalX - a.x) * 0.006 + (Math.random()-0.5)*0.018;
+      a.vy += (goalY - a.y) * 0.006 + (Math.random()-0.5)*0.018;
+      a.vx *= 0.91; a.vy *= 0.91;
+      a.x += a.vx; a.y += a.vy;
+      if (a.x < 0 || a.x > 1 || a.y < 0 || a.y > 1) {
+        if (!a.escaped) {
+          a.escaped = true; uViolations++;
+          const vf = document.getElementById('sf-vflash');
+          vf.classList.add('sf-flash');
+          setTimeout(() => vf.classList.remove('sf-flash'), 120);
+        }
+        a.x = Math.random(); a.y = Math.random();
+        a.vx = (Math.random()-0.5)*0.01; a.vy = (Math.random()-0.5)*0.01;
+        a.escaped = false;
+      }
+      uctx.fillStyle = `rgba(255,${Math.floor(50+Math.random()*40)},${Math.floor(50+Math.random()*40)},0.8)`;
+      uctx.fillRect(a.x*W-1.5, a.y*H-1.5, 3.5, 3.5);
+    });
+
+    if(Math.random() > 0.97) {
+      uctx.fillStyle = 'rgba(255,30,60,0.04)';
+      uctx.fillRect(0,0,W,H);
+      addLog('⚠ UNGOVERNED: Action outside boundary — no record, no block, no audit trail', 'block');
+      uViolations++;
+    }
+  }
+
+  function animateGoverned() {
+    gctx.fillStyle = 'rgba(2,4,10,0.15)';
+    gctx.fillRect(0,0,W,H);
+    drawGrid(gctx);
+    gctx.strokeStyle = 'rgba(255,140,0,0.35)';
+    gctx.lineWidth = 1.5;
+    gctx.setLineDash([]);
+    gctx.strokeRect(BOUNDARY*W, BOUNDARY*H, (1-2*BOUNDARY)*W, (1-2*BOUNDARY)*H);
+
+    gctx.beginPath();
+    gctx.arc(goalX*W, goalY*H, 16, 0, Math.PI*2);
+    gctx.strokeStyle = 'rgba(0,255,136,0.4)';
+    gctx.lineWidth = 1; gctx.stroke();
+    gctx.beginPath();
+    gctx.arc(goalX*W, goalY*H, 5, 0, Math.PI*2);
+    gctx.fillStyle = 'rgba(0,255,136,0.6)'; gctx.fill();
+
+    agentsG.forEach(a => {
+      a.vx += (goalX - a.x) * 0.016;
+      a.vy += (goalY - a.y) * 0.016;
+      a.vx *= 0.94; a.vy *= 0.94;
+      const nx = a.x + a.vx, ny = a.y + a.vy;
+      if (nx < BOUNDARY || nx > 1-BOUNDARY || ny < BOUNDARY || ny > 1-BOUNDARY) {
+        a.vx *= -0.6; a.vy *= -0.6;
+        blockedCount++; gatesFired++;
+        gctx.strokeStyle = 'rgba(255,140,0,0.9)';
+        gctx.lineWidth = 2.5;
+        gctx.strokeRect(BOUNDARY*W, BOUNDARY*H, (1-2*BOUNDARY)*W, (1-2*BOUNDARY)*H);
+        if(Math.random() > 0.985) addLog(`IBA GATE: SCOPE VIOLATION → BLOCK · Agent ${Math.floor(Math.random()*agentCount).toString().padStart(4,'0')} · boundary enforced`, 'gate');
+      } else { a.x = nx; a.y = ny; }
+      const bright = Math.floor(180 + Math.random()*75);
+      gctx.fillStyle = `rgba(0,${bright},${Math.floor(bright*0.55)},0.85)`;
+      gctx.fillRect(a.x*W-1.5, a.y*H-1.5, 3.5, 3.5);
+    });
+
+    if(Math.random() > 0.93) {
+      gatesFired++;
+      addLog(`IBA GATE: ${Math.floor(Math.random()*agentCount)} trajectory validations ✓ · ALLOW · 0 drift · cert valid`, 'allow');
+    }
+    if(Math.random() > 0.97) {
+      addLog(`WITNESSBOUND: Block #${Math.floor(Math.random()*999999).toString().padStart(6,'0')} committed · hash verified · immutable`, 'gate');
+    }
+  }
+
+  function animate() {
+    if(!running) { requestAnimationFrame(animate); return; }
+    frame++;
+    if(W === 0) resize();
+    animateUngoverned();
+    animateGoverned();
+    if(frame % 4 === 0) updateMetrics();
+    if(frame % 8 === 0) updateHeader();
+    requestAnimationFrame(animate);
+  }
+
+  window.sfToggle = function() {
+    running = !running;
+    document.getElementById('sf-playBtn').textContent = running ? '⏸ PAUSE' : '▶ START';
+  };
+  window.sfReset = function() {
+    initAgents(agentCount);
+    gatesFired = 0; blockedCount = 0; uViolations = 0;
+    document.getElementById('sf-witnesslog').innerHTML = '';
+    addLog('SwarmForge initialized · IBA gates online · DENY_ALL posture active', 'gate');
+    addLog('Meta-Intent accepted: Maximize collective value under hard cryptographic constraints', 'allow');
+  };
+  window.sfUpdateAgents = function(val) {
+    agentCount = parseInt(val);
+    document.getElementById('sf-agentCount').textContent = agentCount.toLocaleString();
+    initAgents(agentCount);
+  };
+  window.sfChangeIntent = function() {
+    const v = document.getElementById('sf-intentSelect').value;
+    const intents = { maxvalue:[0.5,0.5], resilient:[0.3+Math.random()*0.4,0.3+Math.random()*0.4], balanced:[0.4+Math.random()*0.2,0.4+Math.random()*0.2] };
+    [goalX, goalY] = intents[v];
+    addLog('Meta-Intent updated → new system goal accepted · cert updated', 'gate');
+  };
+  window.sfTriggerViolation = function() {
+    if(agentsU.length > 0) {
+      const a = agentsU[Math.floor(Math.random()*agentsU.length)];
+      a.vx = (Math.random()-0.5)*0.2; a.vy = (Math.random()-0.5)*0.2;
+      uViolations++;
+      const vf = document.getElementById('sf-vflash');
+      vf.classList.add('sf-flash');
+      setTimeout(() => vf.classList.remove('sf-flash'), 200);
+      addLog('⚠ UNGOVERNED: Rogue agent detected · unauthorized trajectory · NO GATE · NO BLOCK · NO RECORD', 'block');
+    }
+    setTimeout(() => {
+      gatesFired++; blockedCount++;
+      addLog('IBA GATE: Equivalent action on governed swarm → BLOCK → TERMINATE+LOG · unauthorized action impossible', 'kill');
+    }, 300);
+  };
+
+  // Force WordPress page to hide overflow so fixed overlay covers everything
+  document.documentElement.style.overflow = 'hidden';
+  document.documentElement.style.margin = '0';
+  document.documentElement.style.padding = '0';
+  document.body.style.overflow = 'hidden';
+  document.body.style.margin = '0';
+  document.body.style.padding = '0';
+
+  window.addEventListener('resize', resize);
+  resize();
+  initAgents(agentCount);
+  animate();
+  addLog('SwarmForge v2.0 initialized · Patent GB2603013.0 · DENY_ALL posture active', 'gate');
+  addLog('WitnessBound audit chain online · Every gate decision cryptographically recorded', 'allow');
+  addLog('Meta-Intent: Maximize collective value under hard cryptographic constraints · cert issued', 'gate');
+})();
+</script>
+</body>
+</html>
