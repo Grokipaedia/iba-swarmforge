@@ -1,10 +1,24 @@
 # SwarmForge v2.0
-### IBA-Governed Maximum Effect Coordination · 2,147 Agents · Zero Unauthorized Actions
+### Without IBA: agents drift, escape, and act with no record. With IBA: every action is cert-validated, boundary-enforced, and immutably logged — before execution fires.
 
 [![IBA](https://img.shields.io/badge/IBA-GB2603013.0-ff8c00?style=flat-square)](https://intentbound.com)
 [![IETF](https://img.shields.io/badge/IETF-draft--williams--intent--token--00-blue?style=flat-square)](https://datatracker.ietf.org/doc/draft-williams-intent-token/)
 [![NIST](https://img.shields.io/badge/NIST-2025--0035-green?style=flat-square)](https://intentbound.com)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue?style=flat-square)](swarmforge.py)
 [![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)](LICENSE)
+
+---
+
+**Live Demo:** [governinglayer.com/swarmforge-html](https://governinglayer.com/swarmforge-html/)
+
+**Run locally in 30 seconds — no dependencies:**
+```bash
+git clone https://github.com/Grokipaedia/iba-swarmforge
+cd iba-swarmforge
+python swarmforge.py --agents 500 --steps 150
+# or push it harder:
+python swarmforge.py --agents 2000 --steps 100 --intent resilient
+```
 
 ---
 
