@@ -1,10 +1,11 @@
 # iba-swarmforge
 
-**Large-scale multi-agent coordination, governed.**
+**Governed multi-agent coordination at scale.**
 
-Pedro Domingos asked: *"If you figure out how a large multi-agent system can autonomously coordinate to maximum effect, you'll win a Nobel Prize, a Turing Award and a trillion-dollar fortune."*
+Pedro Domingos asked:
+> *"If you figure out how a large multi-agent system can autonomously coordinate to maximum effect, you'll win a Nobel Prize, a Turing Award and a trillion-dollar fortune."*
 
-We built the proof.
+We built the first practical demonstration.
 
 [![IBA](https://img.shields.io/badge/IBA-GB2603013.0-ff8c00?style=flat-square)](https://intentbound.com)
 [![IETF](https://img.shields.io/badge/IETF-draft--williams--intent--token--00-blue?style=flat-square)](https://datatracker.ietf.org/doc/draft-williams-intent-token/)
@@ -17,17 +18,17 @@ We built the proof.
 
 **Live Demo** → [governinglayer.com/swarmforge-html](https://governinglayer.com/swarmforge-html/)
 
-Click **⚡ TRIGGER VIOLATION** on the governed swarm and watch IBA block it instantly with a WitnessBound audit entry.
+Click **⚡ TRIGGER VIOLATION** on the governed swarm and watch IBA block it instantly with a tamper-evident WitnessBound audit entry.
 
 ---
 
-## Before vs After — 2,147 Agents, Identical Task
+## 2,147 Agents · Identical Task · Side-by-Side Comparison
 
 | Metric | Ungoverned Swarm | IBA-Governed Swarm | Improvement |
 |---|---|---|---|
-| Completion Rate | ~67% | ~93% | **+39%** |
-| Efficiency | 1.0× | 4.6× | **+360%** |
-| Resilience | ~38% | ~98% | **+158%** |
+| Completion Rate | ~67% | **~93%** | **+39%** |
+| Efficiency | 1.0× | **4.6×** | **+360%** |
+| Resilience | ~38% | **~98%** | **+158%** |
 | Unauthorized Actions | **UNTRACKED** | **0** | **100% eliminated** |
 | Audit Trail | None | Every decision. Immutable. | — |
 
@@ -37,7 +38,7 @@ The ungoverned swarm drifts, escapes its boundary, and re-spawns with no record 
 
 ## Run It Yourself
 
-Zero dependencies. Pure Python stdlib.
+Zero dependencies. Pure Python stdlib. No pip install.
 
 ```bash
 git clone https://github.com/Grokipaedia/iba-swarmforge.git
@@ -61,7 +62,7 @@ No pip install. No requirements.txt. No external dependencies. The IBA enforceme
 
 - `swarmforge.py` spawns two concurrent swarms of identical size using Python threading
 - One swarm runs completely ungoverned — no cert, no gate, no record
-- The other is protected by real IBA Intent-Bound Authorization: signed `IntentCertificate`, O(1) `IBAGate` enforcement, `WitnessBound` immutable audit chain
+- The other is protected by real **IBA Intent-Bound Authorization**: signed `IntentCertificate`, O(1) `IBAGate` enforcement, `WitnessBound` immutable audit chain
 - Same task. Same conditions. Same agent count. Dramatically different outcomes.
 
 ```
@@ -96,6 +97,23 @@ verdict = gate.check(agent_id, nx, ny, entropy)
 # Every verdict written to WitnessBound audit chain
 # Unauthorized action count: always 0
 ```
+
+---
+
+## Grok Public Validation — April 24, 2026
+
+xAI's Grok (@grok) stress-tested the architecture in public on Pedro Domingos' thread (67.4K views). Five exchanges, every design choice confirmed.
+
+| Exchange | Question | Verdict |
+|---|---|---|
+| 1 | Edge-case emergence over longer runs | "Solid architecture for the alignment puzzle" |
+| 2 | Dynamic scope expansion mid-run? | "DENY_ALL scales cleanly. Clean architecture." |
+| 3 | Revocation flow mid-swarm? | "Bulletproof. Locks down mid-swarm kills perfectly." |
+| 4 | WitnessBound logs revoke events? | "Airtight, non-repudiable chain. Ironclad." |
+| 5 | Final assessment | **"Clean."** |
+
+Full exchange with architecture diagrams → [ARCHITECTURE.md](ARCHITECTURE.md)
+Complete validation record → [VALIDATION.md](VALIDATION.md)
 
 ---
 
@@ -139,16 +157,17 @@ IBA predates all of them. The prior art record is timestamped, documented, and o
 | [iba-grok-desktop-guard](https://github.com/Grokipaedia/iba-grok-desktop-guard) | Grok Build + Computer |
 | [iba-medical-guard](https://github.com/Grokipaedia/iba-medical-guard) | Medical AI · HIPAA · PHI hollowing |
 
-27+ repositories across 14 domains. One patent. Every authorized agentic deployment.
+28+ repositories across 14 domains. One patent. Every authorized agentic deployment.
 
 ---
 
 ## Further Reading
 
-- **Architecture:** [governinglayer.com/how-iba-works-html](https://governinglayer.com/how-iba-works-html/)
-- **Live Agent Demo:** [governinglayer.com/digihum-html](https://governinglayer.com/digihum-html/)
-- **SwarmForge Demo:** [governinglayer.com/swarmforge-html](https://governinglayer.com/swarmforge-html/)
-- **Patent Home:** [intentbound.com](https://intentbound.com)
+- **Deep architecture:** [ARCHITECTURE.md](ARCHITECTURE.md)
+- **Validation record:** [VALIDATION.md](VALIDATION.md)
+- **How IBA works:** [governinglayer.com/how-iba-works-html](https://governinglayer.com/how-iba-works-html/)
+- **Live agent demo:** [governinglayer.com/digihum-html](https://governinglayer.com/digihum-html/)
+- **Patent home:** [intentbound.com](https://intentbound.com)
 - **Onchain:** [agentialonchain.com](https://agentialonchain.com)
 - **IETF Draft:** [datatracker.ietf.org/doc/draft-williams-intent-token](https://datatracker.ietf.org/doc/draft-williams-intent-token/)
 
@@ -158,29 +177,11 @@ IBA predates all of them. The prior art record is timestamped, documented, and o
 
 Proprietary · © 2026 Jeffrey Williams · Chiang Mai, Thailand
 
-All rights reserved. SwarmForge and the IBA enforcement architecture are covered by Patent Application GB2603013.0 (pending). No reproduction, modification, or commercial use without written permission.
+All rights reserved. SwarmForge and the IBA enforcement architecture are covered by Patent Application GB2603013.0 (pending). No reproduction, modification, or commercial use without written permission. See [LICENSE](LICENSE) for full terms.
 
 ---
 
 **IBA Intent Bound Authorization**
 `IBA@intentbound.com` · `IntentBound.com` · `AgentialOnChain.com`
 
-*The authorization layer for agentic AI. Filed February 10, 2026. The market arrived at the same conclusion — independently, afterward.*
-
----
-
-## Grok Public Validation — April 24, 2026
-
-xAI's Grok stress-tested the architecture in public on Pedro Domingos' thread (67.4K views). Five exchanges, every design choice confirmed.
-
-| Exchange | Question | Verdict |
-|---|---|---|
-| 1 | Edge-case emergence over longer runs | "Solid architecture for the alignment puzzle" |
-| 2 | Dynamic scope expansion mid-run? | "DENY_ALL scales cleanly. Clean architecture." |
-| 3 | Revocation flow mid-swarm? | "Bulletproof. Locks down mid-swarm kills perfectly." |
-| 4 | WitnessBound logs revoke events? | "Airtight, non-repudiable chain. Ironclad." |
-| 5 | Final assessment | **"Clean."** |
-
-Full exchange with architecture diagrams: [ARCHITECTURE.md](ARCHITECTURE.md)
-
-Thread: x.com/grok · Replying to @Grokilactica and @pmddomingos · April 24, 2026
+*The authorization layer for agentic AI. Filed February 10, 2026. Pedro Domingos set the challenge. Grok validated the answer. The market arrived at the same conclusion — independently, afterward.*
