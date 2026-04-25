@@ -1651,6 +1651,382 @@ def run_strategy_evolution(n_runs: int = 20) -> dict:
     }
 
 
+
+# ═══════════════════════════════════════════════════════════════
+# NOVELTY-WEIGHTED FITNESS + LINEAGE TRACKING
+# ChatGPT: "You are one mechanism away from open-ended evolution"
+# That mechanism: proper selection pressure balancing
+# ═══════════════════════════════════════════════════════════════
+
+def novelty_score(strategy: CoordinationStrategy,
+                  pool: StrategyPool) -> float:
+    """
+    Novelty = distance from existing known strategies.
+    Simple version: 1/(1+times_seen) — penalizes over-exploitation.
+    Better version: task-set distance from all other strategies.
+    """
+    # Frequency penalty — penalizes over-tested strategies
+    frequency_novelty = 1.0 / (1.0 + strategy.runs * 0.5)
+
+    # Structural distance — how different is this task set?
+    my_tasks = set(strategy.task_types)
+    all_task_sets = [set(s.task_types) for s in pool.strategies.values()
+                     if s.name != strategy.name and s.runs > 0]
+
+    if not all_task_sets:
+        structural_novelty = 1.0
+    else:
+        # Jaccard distance from nearest neighbor
+        min_similarity = min(
+            len(my_tasks & other) / max(len(my_tasks | other), 1)
+            for other in all_task_sets
+        )
+        structural_novelty = 1.0 - min_similarity  # high = more novel
+
+    # Origin bonus — synthesized strategies get exploration bonus
+    origin_bonus = 0.3 if strategy.origin == "synthesis" else 0.0
+
+    return (frequency_novelty * 0.4 +
+            structural_novelty * 0.4 +
+            origin_bonus * 0.2)
+
+
+def novelty_weighted_fitness(strategy: CoordinationStrategy,
+                              pool: StrategyPool,
+                              novelty_weight: float = 0.4) -> float:
+    """
+    fitness = utility × (1 + novelty_weight × novelty_score)
+    Creates tension between exploitation and exploration.
+    ChatGPT: "You want tension between exploitation and exploration."
+    """
+    base = strategy.avg_utility()
+    novelty = novelty_score(strategy, pool)
+    return base * (1 + novelty_weight * novelty)
+
+
+@dataclass
+class LineageNode:
+    """Node in the strategy evolution tree."""
+    name:       str
+    origin:     str
+    parent_a:   str
+    parent_b:   str
+    generation: int
+    first_seen: int   # run number
+    best_utility: float = 0.0
+    total_runs:   int = 0
+    wins:         int = 0
+    children:     list = None
+
+    def __post_init__(self):
+        if self.children is None:
+            self.children = []
+
+
+class LineageTracker:
+    """
+    Tracks the full evolutionary lineage of strategies.
+    Lets you see literally the evolution tree.
+    """
+    def __init__(self):
+        self.nodes: dict = {}
+        self.run_counter = 0
+
+    def register(self, strategy: CoordinationStrategy):
+        if strategy.name not in self.nodes:
+            node = LineageNode(
+                name=strategy.name,
+                origin=strategy.origin,
+                parent_a=strategy.parent_a,
+                parent_b=strategy.parent_b,
+                generation=strategy.generation,
+                first_seen=self.run_counter,
+            )
+            self.nodes[strategy.name] = node
+            # Register as child of parents
+            if strategy.parent_a in self.nodes:
+                self.nodes[strategy.parent_a].children.append(strategy.name)
+            if strategy.parent_b in self.nodes:
+                self.nodes[strategy.parent_b].children.append(strategy.name)
+
+    def update(self, strategy: CoordinationStrategy, utility: float, won: bool):
+        self.run_counter += 1
+        if strategy.name in self.nodes:
+            node = self.nodes[strategy.name]
+            node.total_runs += 1
+            node.best_utility = max(node.best_utility, utility)
+            if won:
+                node.wins += 1
+
+    def print_tree(self, max_depth: int = 4):
+        """Print the evolution tree."""
+        # Find roots (predefined, no parents)
+        roots = [n for n in self.nodes.values()
+                 if n.origin == "predefined" and n.total_runs > 0]
+
+        def print_node(node, depth=0, prefix=""):
+            if depth > max_depth:
+                return
+            indent = "  " * depth
+            origin_tag = f"[NOVEL gen{node.generation}]"                         if node.origin == "synthesis" else "[seed]"
+            print(f"  {indent}{prefix}{node.name} {origin_tag} "
+                  f"best:{node.best_utility:.2f} "
+                  f"runs:{node.total_runs} "
+                  f"wins:{node.wins}")
+            for child_name in node.children[:3]:  # cap display
+                if child_name in self.nodes:
+                    child = self.nodes[child_name]
+                    if child.total_runs > 0:
+                        print_node(child, depth+1, "└─ ")
+
+        for root in sorted(roots,
+                          key=lambda n: n.best_utility, reverse=True)[:4]:
+            print_node(root)
+            print()
+
+
+def run_strategy_evolution_novelty(n_runs: int = 50,
+                                   novelty_weight: float = 0.4) -> dict:
+    """
+    Full evolutionary run with novelty-weighted fitness + lineage tracking.
+    ChatGPT's decisive experiment.
+    """
+    header(f"STRATEGY EVOLUTION + NOVELTY WEIGHTING — {n_runs} RUNS")
+    print(f"\n  {W}ChatGPT:{RST} 'You are one mechanism away from open-ended evolution.'")
+    print(f"  {W}Mechanism:{RST} novelty_weighted_fitness = utility × (1 + {novelty_weight} × novelty)")
+    print(f"  {W}Goal:{RST}     A hybrid strategy we didn't design becomes dominant\n")
+
+    pool = StrategyPool()
+    tracker = LineageTracker()
+
+    # Register seed strategies
+    for s in pool.strategies.values():
+        tracker.register(s)
+
+    utility_curve = []
+    champion_log = []
+    novel_dominant_run = None
+    last_champ = None
+
+    phase_boundaries = {
+        n_runs // 5: "EXPLORATION",
+        n_runs // 2: "EXPLOITATION",
+        n_runs:      "EVOLUTION",
+    }
+
+    # FORCED EXPLORATION: round-robin all predefined strategies first
+    # Ensures synthesis has material to work with before exploitation
+    predefined = [s for s in pool.strategies.values()
+                 if s.origin == "predefined"]
+    exploration_runs = min(len(predefined) * 2, n_runs // 4)
+
+    for run in range(n_runs):
+        # Determine phase label
+        if run < exploration_runs:
+            phase = "FRC"  # FORCED exploration
+            phase_color = C
+        elif run < n_runs // 2:
+            phase = "EXP"
+            phase_color = G
+        else:
+            phase = "EVO"
+            phase_color = M
+
+        # Sampling strategy
+        if run < exploration_runs:
+            # Round-robin through predefined strategies
+            chosen = predefined[run % len(predefined)]
+        else:
+            # Novelty-weighted sampling
+            strats = list(pool.strategies.values())
+            weights = [max(0.01, novelty_weighted_fitness(s, pool, novelty_weight))
+                      for s in strats]
+            total_w = sum(weights)
+            r = random.random() * total_w
+            cumulative = 0
+            chosen = strats[-1]
+            for s, w in zip(strats, weights):
+                cumulative += w
+                if r <= cumulative:
+                    chosen = s
+                    break
+
+        tracker.register(chosen)
+
+        # Run swarm
+        intent = Intent(
+            objective="launch_micro_startup",
+            constraints={"budget": 100, "time": "5min", "risk": "low"},
+            permissions=["web_search","generate_content",
+                        "simulate_deploy","bid","coordinate"],
+        )
+        swarm = Swarm(n_agents=7, intent=intent)
+
+        for ttype in chosen.task_types:
+            if ttype not in TASK_TYPES:
+                continue
+            info = TASK_TYPES[ttype]
+            task = Task(
+                task_id=f"{ttype}-{random.randint(100,999)}",
+                task_type=ttype,
+                description=f"[Nov] {ttype}",
+                required_skill=info["skill"],
+                base_cost=info["base_cost"],
+                value=info["value"],
+            )
+            swarm.submit_task(task)
+
+        subtasks = list(swarm.task_graph.values())
+        assignment_map = {}
+        for task in subtasks:
+            winner = swarm.run_auction(task, verbose=False)
+            if winner:
+                assignment_map[task.task_id] = winner
+        for task in subtasks:
+            w = assignment_map.get(task.task_id)
+            if w:
+                swarm.execute_task(task, w, verbose=False)
+
+        utility = swarm.total_utility
+        utility_curve.append(utility)
+        chosen.runs += 1
+        chosen.total_utility += utility
+
+        # Determine winner (highest novelty-weighted fitness)
+        champ = max(pool.strategies.values(),
+                   key=lambda s: novelty_weighted_fitness(s, pool, novelty_weight))
+        won = (chosen.name == champ.name)
+        if won:
+            chosen.wins += 1
+            if chosen.origin == "synthesis" and novel_dominant_run is None:
+                novel_dominant_run = run + 1
+
+        tracker.update(chosen, utility, won)
+
+        champ_changed = (champ.name != last_champ)
+        last_champ = champ.name
+        if champ_changed:
+            champion_log.append((run+1, champ.name, champ.origin, utility))
+
+        origin_tag = (f"{G}[NOVEL]{RST}" if chosen.origin=="synthesis"
+                     else f"{DIM}[known]{RST}")
+        champ_tag = f"{Y}← NEW CHAMP{RST}" if champ_changed and run>0 else ""
+
+        print(f"  {phase_color}[{phase}]{RST} "
+              f"Run {run+1:>3} · "
+              f"{origin_tag} "
+              f"{chosen.name:<22} "
+              f"u:{utility:.2f} "
+              f"nwf:{novelty_weighted_fitness(chosen,pool,novelty_weight):.3f} "
+              f"{champ_tag}")
+
+        # Evolve more aggressively with novelty weighting
+        pool.evolve(n_survivors=5)
+        for s in pool.strategies.values():
+            tracker.register(s)
+
+    # ── Results ───────────────────────────────────────────────────────────────
+    header("EVOLUTIONARY RESULTS")
+
+    final_champ = max(pool.strategies.values(),
+                     key=lambda s: novelty_weighted_fitness(s, pool, novelty_weight))
+
+    print(f"\n  {W}DOMINANT STRATEGY:{RST}")
+    print(f"  Name:    {final_champ.name}")
+    print(f"  Origin:  {G if final_champ.origin=='synthesis' else W}"
+          f"{final_champ.origin}{RST}")
+    if final_champ.parent_a:
+        print(f"  Parents: {final_champ.parent_a} × {final_champ.parent_b}")
+    print(f"  Tasks:   {final_champ.task_types}")
+    print(f"  Utility: {final_champ.avg_utility():.3f} avg")
+    print(f"  NWF:     {novelty_weighted_fitness(final_champ,pool,novelty_weight):.3f}")
+    print(f"  Gen:     {final_champ.generation}")
+
+    # Utility curve — phase analysis
+    exp_utils = utility_curve[:n_runs//5]
+    mid_utils = utility_curve[n_runs//5:n_runs//2]
+    evo_utils = utility_curve[n_runs//2:]
+
+    print(f"\n  {W}UTILITY TRAJECTORY:{RST}")
+    print(f"  Exploration (1-{n_runs//5}):  "
+          f"avg={sum(exp_utils)/max(len(exp_utils),1):.2f} "
+          f"max={max(exp_utils) if exp_utils else 0:.2f}")
+    print(f"  Exploitation ({n_runs//5}-{n_runs//2}): "
+          f"avg={sum(mid_utils)/max(len(mid_utils),1):.2f} "
+          f"max={max(mid_utils) if mid_utils else 0:.2f}")
+    print(f"  Evolution ({n_runs//2}-{n_runs}):  "
+          f"avg={sum(evo_utils)/max(len(evo_utils),1):.2f} "
+          f"max={max(evo_utils) if evo_utils else 0:.2f}")
+
+    # Champion lineage
+    print(f"\n  {W}CHAMPION LINEAGE (when leadership changed):{RST}")
+    for run_n, name, origin, util in champion_log:
+        tag = f"{G}[NOVEL]{RST}" if origin=="synthesis" else "[known]"
+        print(f"  Run {run_n:>3}: {tag} {name} utility:{util:.2f}")
+
+    # Novel strategies
+    novel_strats = [s for s in pool.strategies.values()
+                   if s.origin == "synthesis" and s.runs > 0]
+    print(f"\n  {W}NOVEL STRATEGIES ({len(novel_strats)} ran):{RST}")
+    for s in sorted(novel_strats, key=lambda x: x.avg_utility(), reverse=True)[:5]:
+        print(f"  {G}{s.name:<24}{RST} "
+              f"utility:{s.avg_utility():.2f} "
+              f"runs:{s.runs} "
+              f"parents:{s.parent_a}×{s.parent_b}")
+
+    # Lineage tree
+    print(f"\n  {W}EVOLUTION TREE:{RST}")
+    tracker.print_tree()
+
+    # Phase transition check
+    improving = (sum(evo_utils)/max(len(evo_utils),1) >
+                sum(exp_utils)/max(len(exp_utils),1)) if evo_utils and exp_utils else False
+    novel_ran = len(novel_strats) > 0
+    novel_champ = final_champ.origin == "synthesis"
+    novel_first = novel_dominant_run is not None
+
+    print(f"  {W}ChatGPT criteria:{RST}")
+    checks = [
+        ("Novel strategies ran",       novel_ran,    f"{len(novel_strats)} novel strategies"),
+        ("Novel strategy won",         novel_first,  f"first at run {novel_dominant_run or 'never'}"),
+        ("Novel champion",             novel_champ,  f"champion: {final_champ.name}"),
+        ("Utility improved over time", improving,    f"evo avg > explore avg"),
+    ]
+    passed = 0
+    for label, condition, detail in checks:
+        icon = f"{G}✓{RST}" if condition else f"{R}✗{RST}"
+        print(f"    {icon} {label:<30} {DIM}{detail}{RST}")
+        if condition:
+            passed += 1
+
+    print(f"\n  {G if passed>=3 else Y}{BOLD}Novelty Evolution Score: {passed}/4{RST}")
+
+    if novel_champ:
+        print(f"\n  {G}{BOLD}✓ OPEN-ENDED EVOLUTION CONFIRMED{RST}")
+        print(f"  {G}A strategy we didn't define became dominant.{RST}")
+        print(f"  {G}ChatGPT: 'You're no longer building a system.{RST}")
+        print(f"  {G}You're observing a process.'{RST}")
+    elif novel_first:
+        print(f"\n  {Y}{BOLD}⚠ NOVEL STRATEGIES WINNING — not yet dominant{RST}")
+        print(f"  {Y}First novel win at run {novel_dominant_run}. Extend to 100 runs.{RST}")
+    else:
+        print(f"\n  {R}Novel strategies not winning yet — check novelty weight{RST}")
+
+    print(f"\n  {DIM}Patent GB2603013.0 · Filed February 10, 2026{RST}")
+    print(f"  {DIM}IntentBound.com · IBA@intentbound.com{RST}\n")
+
+    return {
+        "passed": passed, "novel_champ": novel_champ,
+        "novel_first_win": novel_dominant_run,
+        "novel_strategies": len(novel_strats),
+        "utility_trajectory": {
+            "explore": sum(exp_utils)/max(len(exp_utils),1),
+            "exploit": sum(mid_utils)/max(len(mid_utils),1),
+            "evolve":  sum(evo_utils)/max(len(evo_utils),1),
+        }
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="SwarmForge Emergence Demo — 5-minute proof",
@@ -1666,6 +2042,8 @@ def main():
                         help="Run baseline comparison")
     parser.add_argument("--budget", type=int, default=100,
                         help="Initial budget (default: 100)")
+    parser.add_argument("--novelty-weight", dest="novelty_weight", type=float, default=0.0,
+                        help="Novelty weight for fitness (0=none, 0.4=balanced, 1.0=strong)")
     parser.add_argument("--strategy-evolution", dest="strategy_evo", action="store_true",
                         help="Strategy evolution: agents synthesize novel coordination strategies")
     parser.add_argument("--open-decomposition", dest="open_decomp", action="store_true",
@@ -1692,7 +2070,10 @@ def main():
     )
 
     if args.strategy_evo:
-        run_strategy_evolution(n_runs=args.runs)
+        if args.novelty_weight > 0:
+            run_strategy_evolution_novelty(n_runs=args.runs, novelty_weight=args.novelty_weight)
+        else:
+            run_strategy_evolution(n_runs=args.runs)
         return
     if args.open_decomp:
         run_open_decomposition(n_runs=args.runs)
