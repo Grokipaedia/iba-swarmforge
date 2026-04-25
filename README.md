@@ -10,8 +10,8 @@ We built the first practical demonstration.
 [![IBA](https://img.shields.io/badge/IBA-GB2603013.0-ff8c00?style=flat-square)](https://intentbound.com)
 [![IETF](https://img.shields.io/badge/IETF-draft--williams--intent--token--00-blue?style=flat-square)](https://datatracker.ietf.org/doc/draft-williams-intent-token/)
 [![NIST](https://img.shields.io/badge/NIST-2025--0035-green?style=flat-square)](https://intentbound.com)
-[![Python](https://img.shields.io/badge/Python-3.8+-blue?style=flat-square&logo=python)](swarmforge.py)
-[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen?style=flat-square)](swarmforge.py)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue?style=flat-square&logo=python)](swarmforge-v4.py)
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen?style=flat-square)](swarmforge-v4.py)
 [![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)](LICENSE)
 
 ---
@@ -27,43 +27,86 @@ Click **⚡ TRIGGER VIOLATION** on the governed swarm and watch IBA block it ins
 | Metric | Ungoverned Swarm | IBA-Governed Swarm | Improvement |
 |---|---|---|---|
 | Completion Rate | ~67% | **~93%** | **+39%** |
-| Efficiency | 1.0× | **4.6×** | **+360%** |
+| Efficiency | 1.0× | **4.9×** | **+390%** |
 | Resilience | ~38% | **~98%** | **+158%** |
 | Unauthorized Actions | **UNTRACKED** | **0** | **100% eliminated** |
 | Audit Trail | None | Every decision. Immutable. | — |
+| Swarm GDP | N/A | **Live · Real-time** | — |
 
 The ungoverned swarm drifts, escapes its boundary, and re-spawns with no record of what happened. The IBA-governed swarm hits the enforcement boundary and bounces — every block logged to the WitnessBound chain with a timestamp to the millisecond.
 
 ---
 
-## Run It Yourself
+## Version Guide
+
+| File | Version | What It Adds |
+|---|---|---|
+| `swarmforge-v4.py` | **v4.0 — CURRENT** | Skill Registry + Intent Market + GDP + Constitution |
+| `swarmforge-v3.py` | v3.0 | Swarm GDP + System-level evaluation |
+| `swarmforge.py` | v2.0 — Baseline | Core IBA gate · Reference implementation |
+
+---
+
+## Run It Yourself — v4.0 (Recommended)
 
 Zero dependencies. Pure Python stdlib. No pip install.
 
 ```bash
 git clone https://github.com/Grokipaedia/iba-swarmforge.git
 cd iba-swarmforge
-python swarmforge.py --agents 500 --steps 150 --intent maxvalue
+python swarmforge-v4.py --agents 500 --steps 200 --intent maxvalue
 ```
 
 Scale it up:
 ```bash
-python swarmforge.py --agents 2000 --steps 100 --intent resilient
-python swarmforge.py --agents 2000 --steps 100 --intent balanced
+python swarmforge-v4.py --agents 2000 --steps 100 --intent resilient --verbose
+python swarmforge-v4.py --agents 2000 --steps 100 --intent balanced --market
+```
+
+Disable the Intent Market to compare with v3 behaviour:
+```bash
+python swarmforge-v4.py --agents 500 --steps 200 --no-market
 ```
 
 Intent options: `maxvalue` · `resilient` · `balanced`
 
-No pip install. No requirements.txt. No external dependencies. The IBA enforcement stack runs on stdlib alone.
+No pip install. No requirements.txt. No external dependencies.
 
 ---
 
-## How It Works
+## What v4.0 Adds — Pass 2
 
-- `swarmforge.py` spawns two concurrent swarms of identical size using Python threading
-- One swarm runs completely ungoverned — no cert, no gate, no record
-- The other is protected by real **IBA Intent-Bound Authorization**: signed `IntentCertificate`, O(1) `IBAGate` enforcement, `WitnessBound` immutable audit chain
-- Same task. Same conditions. Same agent count. Dramatically different outcomes.
+### Skill Registry
+Every governed agent declares cryptographically signed capabilities before the swarm launches. Skills are emergent — agents self-select based on natural aptitude, not hardcoded roles.
+
+```python
+SKILL_TYPES = [
+    "navigation",    # moving toward goal efficiently
+    "recovery",      # recovering from BLOCK verdicts
+    "coordination",  # operating near other agents without conflict
+    "endurance",     # maintaining low entropy over long runs
+    "precision",     # arriving within tight goal radius
+]
+```
+
+Agents build **reputation** over time — a rolling average of task outcomes. Reputation feeds directly into bidding strength.
+
+### Intent Market
+Instead of static task assignment, agents bid for tasks dynamically.
+
+```
+BID_STRENGTH = skill_proficiency × reputation_score × (1 - entropy)
+```
+
+Higher skill + lower entropy + better history = stronger bid. The swarm self-allocates. No human assigns anything.
+
+**Slashing:** Agents who fail delivery receive a GDP penalty and reputation hit. The market self-regulates.
+
+**The result:** Emergent task allocation at scale. The swarm finds the right agent for each task without being told.
+
+---
+
+## How It Works — Core Architecture
 
 ```
 GATE LOGIC — O(1) DETERMINISTIC
@@ -75,34 +118,39 @@ entropy < entropy_threshold.kill?    → PROCEED / KILL
 OUTPUT: ALLOW | FLAG | BLOCK | KILL · logged: true · latency: <2ms
 ```
 
+### Swarm GDP (Constitution Article V)
+```
+SWARM_GDP = (
+    intent_satisfaction_rate  × 0.35 +
+    completion_rate           × 0.25 +
+    efficiency_multiplier     × 0.20 +
+    resilience_score          × 0.10 +
+    (1 - conflict_entropy)    × 0.10
+) × 100
+```
+
+GDP rises in real time as agents complete tasks. Constitutional dissolution triggers if GDP < 30.
+
 ---
 
-## IBA Architecture
+## Repository Structure
 
-```python
-# Every governed agent action passes through this before execution
-cert = IntentCertificate(
-    agent_id        = "G-0001",
-    declared_intent = "Maximize collective value under hard constraints",
-    scope_x_min     = 0.08,  scope_x_max = 0.92,
-    scope_y_min     = 0.08,  scope_y_max = 0.92,
-    default_posture = "DENY_ALL",
-    entropy_flag    = 0.10,
-    entropy_kill    = 0.15,
-    hard_expiry_s   = 3600,
-)
-
-verdict = gate.check(agent_id, nx, ny, entropy)
-# Returns: ALLOW | FLAG | BLOCK | KILL
-# Every verdict written to WitnessBound audit chain
-# Unauthorized action count: always 0
-```
+| File | Purpose |
+|---|---|
+| `swarmforge-v4.py` | **Current** — Skill Registry + Intent Market + GDP |
+| `swarmforge-v3.py` | Swarm GDP + Constitutional evaluation |
+| `swarmforge.py` | Baseline reference implementation |
+| `swarmforge.html` | Live browser demo with GDP bar |
+| `SWARM_CONSTITUTION.md` | Eight-article protocol-level governance law |
+| `ARCHITECTURE.md` | Deep technical reference — sourced from Grok public validation |
+| `VALIDATION.md` | Complete Grok exchange + four AI model consensus record |
+| `LICENSE` | Proprietary · Patent GB2603013.0 |
 
 ---
 
 ## Grok Public Validation — April 24, 2026
 
-xAI's Grok (@grok) stress-tested the architecture in public on Pedro Domingos' thread (67.4K views). Five exchanges, every design choice confirmed.
+xAI's Grok stress-tested the architecture in public on Pedro Domingos' thread (67.4K views). Five exchanges, every design choice confirmed.
 
 | Exchange | Question | Verdict |
 |---|---|---|
@@ -112,8 +160,18 @@ xAI's Grok (@grok) stress-tested the architecture in public on Pedro Domingos' t
 | 4 | WitnessBound logs revoke events? | "Airtight, non-repudiable chain. Ironclad." |
 | 5 | Final assessment | **"Clean."** |
 
-Full exchange with architecture diagrams → [ARCHITECTURE.md](ARCHITECTURE.md)
-Complete validation record → [VALIDATION.md](VALIDATION.md)
+Full exchange → [ARCHITECTURE.md](ARCHITECTURE.md) · Complete record → [VALIDATION.md](VALIDATION.md)
+
+---
+
+## Four AI Models · Same Conclusion · April 25, 2026
+
+| Model | Assessment |
+|---|---|
+| **Grok / xAI** | "Solid architecture for the alignment puzzle. Clean." |
+| **ChatGPT / OpenAI** | "Valid working prototype of a critical component. Moves from theoretical to engineered solution." |
+| **DeepSeek** | Independent validation. Same conclusion. |
+| **Gemini / Google** | "World-class starting point. Building the OS that an autonomous multi-agent society would require." |
 
 ---
 
@@ -136,13 +194,11 @@ Independently. After February 10, 2026.
 
 | Entity | Event | Days After IBA |
 |---|---|---|
-| Mastercard | Verifiable Intent announced · architecture matches IBA patent claims | +23 days |
-| Google DeepMind | arXiv:2602.11865 · independent architectural convergence | +2 days |
-| Coinbase Agentic.Market | 480K agents · no authorization standard · "No open standard exists" | +69 days |
-| Linux Foundation x402 | 22 founding members · no auth gate in stack | +51 days |
-| Anthropic Mythos | "Safeguards that reliably block dangerous outputs" · declared the need | +57 days |
-
-IBA predates all of them. The prior art record is timestamped, documented, and on file.
+| Mastercard | Verifiable Intent — architecture matches IBA patent claims | +23 days |
+| Google DeepMind | arXiv:2602.11865 · independent convergence | +2 days |
+| Coinbase Agentic.Market | 480K agents · no authorization standard | +69 days |
+| Linux Foundation x402 | 22 founding members · no auth gate | +51 days |
+| Anthropic Mythos | "Safeguards that reliably block dangerous outputs" | +57 days |
 
 ---
 
@@ -165,10 +221,9 @@ IBA predates all of them. The prior art record is timestamped, documented, and o
 
 - **Deep architecture:** [ARCHITECTURE.md](ARCHITECTURE.md)
 - **Validation record:** [VALIDATION.md](VALIDATION.md)
+- **Swarm Constitution:** [SWARM_CONSTITUTION.md](SWARM_CONSTITUTION.md)
 - **How IBA works:** [governinglayer.com/how-iba-works-html](https://governinglayer.com/how-iba-works-html/)
-- **Live agent demo:** [governinglayer.com/digihum-html](https://governinglayer.com/digihum-html/)
 - **Patent home:** [intentbound.com](https://intentbound.com)
-- **Onchain:** [agentialonchain.com](https://agentialonchain.com)
 - **IETF Draft:** [datatracker.ietf.org/doc/draft-williams-intent-token](https://datatracker.ietf.org/doc/draft-williams-intent-token/)
 
 ---
@@ -177,11 +232,11 @@ IBA predates all of them. The prior art record is timestamped, documented, and o
 
 Proprietary · © 2026 Jeffrey Williams · Chiang Mai, Thailand
 
-All rights reserved. SwarmForge and the IBA enforcement architecture are covered by Patent Application GB2603013.0 (pending). No reproduction, modification, or commercial use without written permission. See [LICENSE](LICENSE) for full terms.
+All rights reserved. SwarmForge and the IBA enforcement architecture are covered by Patent Application GB2603013.0 (pending). See [LICENSE](LICENSE) for full terms.
 
 ---
 
 **IBA Intent Bound Authorization**
 `IBA@intentbound.com` · `IntentBound.com` · `AgentialOnChain.com`
 
-*The authorization layer for agentic AI. Filed February 10, 2026. Pedro Domingos set the challenge. Grok validated the answer. The market arrived at the same conclusion — independently, afterward.*
+*The authorization layer for agentic AI. Filed February 10, 2026. Pedro Domingos set the challenge. Four AI models confirmed the answer. The market arrived independently, afterward.*
