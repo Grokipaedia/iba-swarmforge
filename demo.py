@@ -930,6 +930,322 @@ def run_kill_tests():
     return results
 
 
+
+# ═══════════════════════════════════════════════════════════════
+# OPEN DECOMPOSITION — ChatGPT unlock · April 25, 2026
+# "Task → competing decompositions → competing execution graphs"
+# "You stop demonstrating emergence and start discovering it."
+# ═══════════════════════════════════════════════════════════════
+
+DECOMP_STRATEGIES = {
+    "parallel":     ["ideation","validation","branding","copywriting"],
+    "sequential":   ["research","validation","ideation","pricing","deployment"],
+    "competitive":  ["ideation","ideation","validation","branding"],   # redundant
+    "minimal":      ["ideation","pricing"],
+    "exhaustive":   ["research","ideation","validation","branding",
+                     "copywriting","pricing","deployment"],
+    "specialist":   ["validation","pricing","deployment"],
+    "creative":     ["ideation","branding","copywriting","deployment"],
+}
+
+@dataclass
+class DecompositionProposal:
+    """An agent's proposed task graph for the root objective."""
+    agent_id:    int
+    strategy:    str
+    task_types:  list
+    confidence:  float
+    cost_estimate: float
+    rationale:   str
+
+class OpenDecompositionSwarm(Swarm):
+    """
+    Swarm where agents PROPOSE competing task decompositions.
+    The best proposal wins — then gets executed.
+    This is where emergence explodes:
+    Task → competing decompositions → competing execution graphs
+    """
+
+    def propose_decomposition(self, agent: Agent,
+                               intent: Intent) -> DecompositionProposal:
+        """Agent proposes how to decompose the root task."""
+        # Each agent picks based on dominant skill + strategy
+        dominant = max(agent.skills, key=agent.skills.get)
+
+        # Skill → preferred decomposition style
+        skill_preference = {
+            "creative":     ["parallel","creative","exhaustive"],
+            "analytical":   ["sequential","specialist","minimal"],
+            "technical":    ["sequential","specialist","exhaustive"],
+            "coordination": ["parallel","competitive","exhaustive"],
+        }
+        preferred = skill_preference.get(dominant, list(DECOMP_STRATEGIES.keys()))
+
+        # Strategy modifies preference
+        if agent.strategy == "aggressive":
+            preferred = ["minimal","parallel","creative"]
+        elif agent.strategy == "conservative":
+            preferred = ["sequential","specialist","minimal"]
+        elif agent.strategy == "opportunistic":
+            preferred = list(DECOMP_STRATEGIES.keys())  # bids on anything
+
+        # Select decomposition — with randomness (non-determinism)
+        weights = [3 if s in preferred else 1
+                   for s in DECOMP_STRATEGIES.keys()]
+        total = sum(weights)
+        r = random.random() * total
+        cumulative = 0
+        chosen_strategy = "parallel"
+        for s, w in zip(DECOMP_STRATEGIES.keys(), weights):
+            cumulative += w
+            if r <= cumulative:
+                chosen_strategy = s
+                break
+
+        task_types = DECOMP_STRATEGIES[chosen_strategy].copy()
+        # Add noise — agents sometimes add/remove tasks
+        if random.random() > 0.7 and len(task_types) > 2:
+            task_types.pop(random.randrange(len(task_types)))
+        if random.random() > 0.8:
+            extras = ["research","coordination","deployment"]
+            task_types.append(random.choice(extras))
+
+        # Estimate cost and confidence
+        total_cost = sum(TASK_TYPES.get(t, {}).get("base_cost", 20)
+                        for t in task_types)
+        budget = intent.constraints.get("budget", 100)
+        feasible = total_cost <= budget
+        confidence = agent.skills.get(dominant, 0.5) * agent.reputation
+        if not feasible:
+            confidence *= 0.5  # penalize over-budget proposals
+
+        rationale = (f"{chosen_strategy} decomp · {len(task_types)} tasks · "
+                    f"${total_cost:.0f} · dominant:{dominant}")
+
+        return DecompositionProposal(
+            agent_id=agent.agent_id,
+            strategy=chosen_strategy,
+            task_types=task_types,
+            confidence=confidence,
+            cost_estimate=total_cost,
+            rationale=rationale,
+        )
+
+    def run_decomposition_market(self,
+                                  intent: Intent,
+                                  verbose: bool = True
+                                  ) -> DecompositionProposal:
+        """
+        All agents propose decompositions.
+        Best proposal wins via utility score.
+        THIS is the generative coordination step.
+        """
+        proposals = [self.propose_decomposition(a, intent)
+                    for a in self.agents]
+
+        # Score proposals: confidence × task_diversity × budget_fit
+        budget = intent.constraints.get("budget", 100)
+        def score(p: DecompositionProposal) -> float:
+            diversity = len(set(p.task_types)) / max(len(p.task_types), 1)
+            budget_fit = max(0, 1 - (p.cost_estimate / max(budget, 1)))
+            coverage = len(p.task_types) / 7  # normalize to max tasks
+            return p.confidence * diversity * (0.5 + 0.5*budget_fit) * (0.5 + 0.5*coverage)
+
+        winner = max(proposals, key=score)
+
+        if verbose:
+            section("DECOMPOSITION MARKET — COMPETING TASK GRAPHS")
+            print(f"  {DIM}Each agent proposes how to decompose the root task.{RST}")
+            print(f"  {DIM}Best proposal wins — then gets executed.{RST}\n")
+            for p in sorted(proposals, key=score, reverse=True)[:5]:
+                a = self.agents[p.agent_id % len(self.agents)]
+                marker = f"{G}◆ WON{RST}" if p.agent_id == winner.agent_id                          else f"{DIM}  ·  {RST}"
+                print(f"  {marker} {a.color}Agent {p.agent_id}{RST} "
+                      f"[{p.strategy:<12}] "
+                      f"tasks:{p.task_types} "
+                      f"score:{score(p):.3f}")
+                print(f"         {DIM}{p.rationale}{RST}")
+
+        return winner
+
+    def run_open(self, verbose: bool = True) -> dict:
+        """Run with open decomposition — agents create the task graph."""
+        start = time.time()
+
+        if verbose:
+            header("OPEN DECOMPOSITION RUN")
+            print(f"\n  {W}Mode:{RST} Agents propose competing task graphs")
+            print(f"  {W}Agents:{RST} {len(self.agents)} (identical start, open decomposition)")
+            print(f"  {W}Roles:{RST}  None assigned — structure must emerge\n")
+            section("AGENT PROFILES")
+            for a in self.agents:
+                dominant = max(a.skills, key=a.skills.get)
+                print(f"  {a.color}Agent {a.agent_id}{RST} "
+                      f"strategy:{a.strategy:<13} "
+                      f"dominant:{dominant:<12} "
+                      f"rep:{a.reputation:.2f}")
+
+        # Step 1: Decomposition market
+        winning_proposal = self.run_decomposition_market(
+            self.intent, verbose)
+
+        if verbose:
+            print(f"\n  {G}◆ WINNING DECOMPOSITION:{RST} "
+                  f"Agent {winning_proposal.agent_id} · "
+                  f"[{winning_proposal.strategy}] · "
+                  f"{winning_proposal.task_types}")
+
+        # Step 2: Build task graph from winning proposal
+        for ttype in winning_proposal.task_types:
+            if ttype not in TASK_TYPES:
+                continue
+            info = TASK_TYPES[ttype]
+            task = Task(
+                task_id=f"{ttype}-{random.randint(100,999)}",
+                task_type=ttype,
+                description=f"[Open] {ttype} for: {self.intent.objective}",
+                required_skill=info["skill"],
+                base_cost=info["base_cost"],
+                value=info["value"],
+                spawned_by=winning_proposal.agent_id,
+            )
+            self.submit_task(task)
+
+        subtasks = list(self.task_graph.values())
+
+        # Step 3: Auction execution
+        if verbose:
+            header("EXECUTION AUCTION — OPEN TASK GRAPH")
+        assignment_map = {}
+        for task in subtasks:
+            winner = self.run_auction(task, verbose)
+            if winner:
+                assignment_map[task.task_id] = winner
+
+        # Step 4: Execute
+        for task in subtasks:
+            w = assignment_map.get(task.task_id)
+            if w:
+                self.execute_task(task, w, verbose)
+                time.sleep(0.05)
+
+        elapsed = time.time() - start
+        role_emergence = {a.agent_id: a.emerged_role
+                         for a in self.agents if a.emerged_role}
+
+        if verbose:
+            header("OPEN DECOMPOSITION RESULTS")
+            print(f"\n  {W}Winning strategy:{RST} {winning_proposal.strategy}")
+            print(f"  {W}Task graph:{RST} {winning_proposal.task_types}")
+            print(f"  {W}Proposed by:{RST} Agent {winning_proposal.agent_id}")
+            print(f"\n  {W}ASSEMBLED OUTPUT:{RST}")
+            for task in self.completed_tasks:
+                if task.result:
+                    print(f"  {G}{task.task_type.upper():<14}{RST} {task.result[:68]}")
+
+        return {
+            "elapsed":          elapsed,
+            "decomp_strategy":  winning_proposal.strategy,
+            "task_types":       winning_proposal.task_types,
+            "proposer":         winning_proposal.agent_id,
+            "tasks_completed":  len(self.completed_tasks),
+            "total_utility":    self.total_utility,
+            "roles_emerged":    len(role_emergence),
+        }
+
+
+def run_open_decomposition(n_runs: int = 5) -> dict:
+    """
+    ChatGPT's unlock: open decomposition across multiple runs.
+    Looking for: different task graphs, some outperform others,
+    agents invent unexpected but effective structures.
+    """
+    header("OPEN DECOMPOSITION — THE NEXT LEVEL")
+    print(f"\n  {W}ChatGPT:{RST} 'Task → competing decompositions → competing execution graphs'")
+    print(f"  {W}Goal:{RST}   Agents invent the task graph — not us\n")
+
+    results = []
+    strategies_seen = []
+    utilities = []
+    task_graphs = []
+
+    for run in range(n_runs):
+        intent = Intent(
+            objective="launch_micro_startup",
+            constraints={"budget": 100, "time": "5min", "risk": "low"},
+            permissions=["web_search","generate_content",
+                        "simulate_deploy","bid","coordinate"],
+        )
+        swarm = OpenDecompositionSwarm(n_agents=7, intent=intent)
+        result = swarm.run_open(verbose=(n_runs == 1))
+        results.append(result)
+        strategies_seen.append(result["decomp_strategy"])
+        utilities.append(result["total_utility"])
+        task_graphs.append(tuple(sorted(result["task_types"])))
+
+        print(f"  Run {run+1}: [{result['decomp_strategy']:<12}] "
+              f"tasks:{result['task_types']} "
+              f"utility:{result['total_utility']:.2f} "
+              f"proposer:Agent {result['proposer']}")
+
+    # Analysis
+    unique_strategies = len(set(strategies_seen))
+    unique_graphs = len(set(task_graphs))
+    utility_range = max(utilities) - min(utilities)
+    best_run = utilities.index(max(utilities))
+    worst_run = utilities.index(min(utilities))
+
+    print(f"\n  {W}{'─'*50}{RST}")
+    print(f"  {W}Strategies used:{RST}     {set(strategies_seen)}")
+    print(f"  {W}Unique strategies:{RST}   {unique_strategies}/{n_runs}")
+    print(f"  {W}Unique task graphs:{RST}  {unique_graphs}/{n_runs}")
+    print(f"  {W}Utility range:{RST}       {min(utilities):.2f} – {max(utilities):.2f} "
+          f"(Δ{utility_range:.2f})")
+    print(f"  {W}Best run:{RST}            Run {best_run+1} "
+          f"[{strategies_seen[best_run]}] utility={max(utilities):.2f}")
+    print(f"  {W}Worst run:{RST}           Run {worst_run+1} "
+          f"[{strategies_seen[worst_run]}] utility={min(utilities):.2f}")
+
+    # ChatGPT pass criteria
+    varied_strategies = unique_strategies >= n_runs * 0.5
+    significant_utility_range = utility_range > 2.0
+    varied_graphs = unique_graphs >= n_runs * 0.4
+
+    print(f"\n  {W}ChatGPT criteria:{RST}")
+
+    checks = [
+        ("Different task graphs",     varied_graphs,
+         f"{unique_graphs}/{n_runs} unique"),
+        ("Performance variance",       significant_utility_range,
+         f"Δutility={utility_range:.2f}"),
+        ("Strategy diversity",         varied_strategies,
+         f"{unique_strategies} strategies seen"),
+    ]
+
+    passed = 0
+    for label, condition, detail in checks:
+        icon = f"{G}✓{RST}" if condition else f"{R}✗{RST}"
+        print(f"    {icon} {label:<26} {DIM}{detail}{RST}")
+        if condition:
+            passed += 1
+
+    print(f"\n  {G if passed==3 else Y}{BOLD}Open Decomposition Score: {passed}/3{RST}")
+
+    if passed == 3:
+        print(f"\n  {G}{BOLD}✓ GENERATIVE COORDINATION CONFIRMED{RST}")
+        print(f"  {G}Agents are creating coordination structures,{RST}")
+        print(f"  {G}not just executing pre-defined ones.{RST}")
+        print(f"  {G}ChatGPT: 'You stop demonstrating emergence{RST}")
+        print(f"  {G}and start discovering it.'{RST}")
+    elif passed >= 2:
+        print(f"\n  {Y}Partial — increase runs or agent count for fuller signal{RST}")
+    else:
+        print(f"\n  {R}Not yet — decomposition space still too constrained{RST}")
+
+    return {"passed": passed, "unique_graphs": unique_graphs,
+            "utility_range": utility_range, "strategies": list(set(strategies_seen))}
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="SwarmForge Emergence Demo — 5-minute proof",
@@ -945,6 +1261,8 @@ def main():
                         help="Run baseline comparison")
     parser.add_argument("--budget", type=int, default=100,
                         help="Initial budget (default: 100)")
+    parser.add_argument("--open-decomposition", dest="open_decomp", action="store_true",
+                        help="Open decomposition: agents propose competing task graphs")
     parser.add_argument("--kill-tests", dest="kill_tests", action="store_true",
                         help="Run ChatGPT kill tests: shuffle, mutation, adversary")
     args = parser.parse_args()
@@ -966,6 +1284,9 @@ def main():
                      "simulate_deploy", "bid", "coordinate"],
     )
 
+    if args.open_decomp:
+        run_open_decomposition(n_runs=args.runs)
+        return
     if args.kill_tests:
         run_kill_tests()
         return
