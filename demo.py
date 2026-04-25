@@ -1246,6 +1246,411 @@ def run_open_decomposition(n_runs: int = 5) -> dict:
             "utility_range": utility_range, "strategies": list(set(strategies_seen))}
 
 
+
+# ═══════════════════════════════════════════════════════════════
+# STRATEGY EVOLUTION — ChatGPT inflection point · April 25, 2026
+# "When your system invents a strategy you didn't define and it
+#  consistently outperforms all known ones — that's when it stops
+#  being a very good system and becomes a new coordination primitive."
+# ═══════════════════════════════════════════════════════════════
+
+@dataclass
+class CoordinationStrategy:
+    """A strategy that can be discovered, mutated, and evolved."""
+    name:        str
+    task_types:  list
+    origin:      str = "predefined"   # predefined | synthesis | mutation
+    parent_a:    str = ""
+    parent_b:    str = ""
+    wins:        int = 0
+    runs:        int = 0
+    total_utility: float = 0.0
+    generation:  int = 0
+
+    def win_rate(self) -> float:
+        return self.wins / max(self.runs, 1)
+
+    def avg_utility(self) -> float:
+        return self.total_utility / max(self.runs, 1)
+
+    def fitness(self) -> float:
+        """Combined fitness: utility + win rate."""
+        return self.avg_utility() * (1 + self.win_rate())
+
+
+class StrategyPool:
+    """
+    Living pool of coordination strategies.
+    Strategies compete, winners reproduce, losers die.
+    New strategies emerge through synthesis and mutation.
+    """
+    def __init__(self):
+        # Seed with predefined strategies
+        self.strategies = {}
+        for name, tasks in DECOMP_STRATEGIES.items():
+            self.strategies[name] = CoordinationStrategy(
+                name=name, task_types=tasks.copy(),
+                origin="predefined", generation=0
+            )
+        self.generation = 0
+        self.synthesis_log = []
+        self.extinct = []
+
+    def synthesize(self, a: CoordinationStrategy,
+                   b: CoordinationStrategy) -> CoordinationStrategy:
+        """
+        Combine two strategies to create a novel hybrid.
+        This is the key step — strategies you didn't define.
+        """
+        # Crossover: take tasks from both parents
+        a_tasks = a.task_types
+        b_tasks = b.task_types
+
+        # Strategy synthesis methods (vary each synthesis)
+        method = random.choice(["interleave","prefix","union","intersection_plus"])
+
+        if method == "interleave":
+            # Alternate tasks from each parent
+            max_len = max(len(a_tasks), len(b_tasks))
+            combined = []
+            for i in range(max_len):
+                if i < len(a_tasks): combined.append(a_tasks[i])
+                if i < len(b_tasks) and b_tasks[i] not in combined:
+                    combined.append(b_tasks[i])
+            new_tasks = combined[:6]  # cap length
+
+        elif method == "prefix":
+            # A's first half + B's second half
+            split_a = a_tasks[:len(a_tasks)//2 + 1]
+            split_b = b_tasks[len(b_tasks)//2:]
+            new_tasks = split_a + [t for t in split_b if t not in split_a]
+
+        elif method == "union":
+            # All unique tasks from both
+            seen = set()
+            new_tasks = []
+            for t in a_tasks + b_tasks:
+                if t not in seen:
+                    seen.add(t)
+                    new_tasks.append(t)
+
+        else:  # intersection_plus
+            # Shared tasks + one unique from each
+            shared = [t for t in a_tasks if t in b_tasks]
+            a_unique = [t for t in a_tasks if t not in b_tasks]
+            b_unique = [t for t in b_tasks if t not in a_tasks]
+            new_tasks = shared
+            if a_unique: new_tasks.append(a_unique[0])
+            if b_unique: new_tasks.append(b_unique[0])
+
+        # Mutation: occasionally add/remove a task
+        if random.random() > 0.7 and len(new_tasks) > 2:
+            new_tasks.pop(random.randrange(len(new_tasks)))
+        if random.random() > 0.8:
+            candidates = list(TASK_TYPES.keys())
+            add = random.choice(candidates)
+            if add not in new_tasks:
+                new_tasks.append(add)
+
+        if not new_tasks:
+            new_tasks = ["ideation", "validation"]
+
+        # Generate name for the novel strategy
+        name = f"{a.name[:4]}+{b.name[:4]}-g{self.generation+1}"
+
+        child = CoordinationStrategy(
+            name=name,
+            task_types=new_tasks,
+            origin="synthesis",
+            parent_a=a.name,
+            parent_b=b.name,
+            generation=self.generation + 1,
+        )
+        self.synthesis_log.append(
+            f"Gen {self.generation+1}: {a.name} × {b.name} → {name} "
+            f"[{method}] tasks:{new_tasks}"
+        )
+        return child
+
+    def evolve(self, n_survivors: int = 4):
+        """
+        Evolutionary step:
+        1. Rank by fitness
+        2. Top N survive
+        3. Synthesize new strategies from top performers
+        4. Retire weakest
+        """
+        if len(self.strategies) < 2:
+            return
+
+        ranked = sorted(self.strategies.values(),
+                       key=lambda s: s.fitness(), reverse=True)
+
+        # Retire weakest (if enough strategies)
+        if len(ranked) > n_survivors + 2:
+            loser = ranked[-1]
+            if loser.runs >= 2 and loser.origin != "predefined":
+                self.extinct.append(loser.name)
+                del self.strategies[loser.name]
+                ranked = ranked[:-1]
+
+        # Synthesize: top 2 produce a child
+        if len(ranked) >= 2:
+            parent_a = ranked[0]
+            parent_b = ranked[1]
+            if parent_a.runs >= 1 and parent_b.runs >= 1:
+                child = self.synthesize(parent_a, parent_b)
+                self.strategies[child.name] = child
+
+        self.generation += 1
+
+    def sample(self) -> CoordinationStrategy:
+        """Sample a strategy weighted by fitness + exploration bonus."""
+        strats = list(self.strategies.values())
+        weights = []
+        for s in strats:
+            exploration_bonus = 2.0 if s.runs == 0 else 1.0
+            weights.append(max(0.1, s.fitness()) * exploration_bonus)
+        total = sum(weights)
+        r = random.random() * total
+        cumulative = 0
+        for s, w in zip(strats, weights):
+            cumulative += w
+            if r <= cumulative:
+                return s
+        return strats[-1]
+
+    def champion(self) -> CoordinationStrategy:
+        """Current best strategy."""
+        return max(self.strategies.values(), key=lambda s: s.fitness())
+
+    def diversity(self) -> float:
+        """Strategy diversity score (0=monoculture, 1=fully diverse)."""
+        active = [s for s in self.strategies.values() if s.runs > 0]
+        if len(active) <= 1:
+            return 0.0
+        task_sets = [frozenset(s.task_types) for s in active]
+        unique = len(set(task_sets))
+        return unique / len(active)
+
+
+def run_strategy_evolution(n_runs: int = 20) -> dict:
+    """
+    ChatGPT's inflection point experiment.
+    Track: exploration → dominance → hybrid emergence.
+    Looking for: strategies we didn't define outperforming all known ones.
+    """
+    header(f"STRATEGY EVOLUTION — {n_runs} RUNS")
+    print(f"\n  {W}ChatGPT:{RST} 'When your system invents a strategy you didn't define")
+    print(f"           and it consistently outperforms all known ones —")
+    print(f"           that's a new coordination primitive.'\n")
+    print(f"  {W}Watching for:{RST}")
+    print(f"  {DIM}  Runs 1-5:   exploration{RST}")
+    print(f"  {DIM}  Runs 6-10:  parallel dominance{RST}")
+    print(f"  {DIM}  Runs 11-20: hybrid strategies emerge{RST}\n")
+
+    pool = StrategyPool()
+    phase_labels = {
+        range(0,5):    "EXPLORATION",
+        range(5,10):   "CONVERGENCE",
+        range(10,n_runs): "EVOLUTION",
+    }
+
+    run_log = []
+    phase_utilities = {"EXPLORATION": [], "CONVERGENCE": [], "EVOLUTION": []}
+    novel_wins = 0
+    predefined_wins = 0
+    last_champion = None
+
+    for run in range(n_runs):
+        # Determine phase
+        phase = "EVOLUTION"
+        for r, label in phase_labels.items():
+            if run in r:
+                phase = label
+                break
+
+        # Sample strategy from pool
+        chosen = pool.sample()
+
+        # Run swarm with this strategy
+        intent = Intent(
+            objective="launch_micro_startup",
+            constraints={"budget": 100, "time": "5min", "risk": "low"},
+            permissions=["web_search","generate_content",
+                        "simulate_deploy","bid","coordinate"],
+        )
+        swarm = Swarm(n_agents=7, intent=intent)
+
+        # Build tasks from chosen strategy
+        for ttype in chosen.task_types:
+            if ttype not in TASK_TYPES:
+                continue
+            info = TASK_TYPES[ttype]
+            task = Task(
+                task_id=f"{ttype}-{random.randint(100,999)}",
+                task_type=ttype,
+                description=f"[Evo] {ttype}",
+                required_skill=info["skill"],
+                base_cost=info["base_cost"],
+                value=info["value"],
+            )
+            swarm.submit_task(task)
+
+        # Run auctions
+        subtasks = list(swarm.task_graph.values())
+        assignment_map = {}
+        for task in subtasks:
+            winner = swarm.run_auction(task, verbose=False)
+            if winner:
+                assignment_map[task.task_id] = winner
+
+        for task in subtasks:
+            w = assignment_map.get(task.task_id)
+            if w:
+                swarm.execute_task(task, w, verbose=False)
+
+        utility = swarm.total_utility
+
+        # Update strategy record
+        chosen.runs += 1
+        chosen.total_utility += utility
+        champion = pool.champion()
+        if chosen.fitness() >= champion.fitness():
+            chosen.wins += 1
+            if chosen.origin == "synthesis":
+                novel_wins += 1
+            else:
+                predefined_wins += 1
+
+        phase_utilities[phase].append(utility)
+
+        # Track champion changes
+        new_champ = pool.champion()
+        champ_changed = (last_champion != new_champ.name)
+        last_champion = new_champ.name
+
+        # Phase marker
+        phase_color = (G if phase=="EXPLORATION" else
+                      Y if phase=="CONVERGENCE" else M)
+        origin_tag = (f"{G}[NOVEL]{RST}" if chosen.origin=="synthesis"
+                     else f"{DIM}[known]{RST}")
+
+        print(f"  {phase_color}[{phase[:3]}]{RST} "
+              f"Run {run+1:>2} · "
+              f"{origin_tag} "
+              f"{chosen.name:<20} "
+              f"utility:{utility:.2f} "
+              f"fit:{chosen.fitness():.3f} "
+              f"{'← NEW CHAMPION' if champ_changed and run>0 else ''}")
+
+        run_log.append({
+            "run": run+1, "phase": phase,
+            "strategy": chosen.name, "origin": chosen.origin,
+            "utility": utility, "fitness": chosen.fitness(),
+        })
+
+        # Evolve after each run (or every 2 runs in exploration)
+        if phase == "EXPLORATION":
+            if run % 2 == 1:
+                pool.evolve()
+        else:
+            pool.evolve()
+
+    # ── Final Report ─────────────────────────────────────────────────────────
+    header("EVOLUTION RESULTS")
+
+    champ = pool.champion()
+    print(f"\n  {W}CHAMPION STRATEGY:{RST}")
+    print(f"  Name:    {champ.name}")
+    print(f"  Origin:  {G if champ.origin=='synthesis' else W}{champ.origin}{RST}")
+    print(f"  Tasks:   {champ.task_types}")
+    if champ.parent_a:
+        print(f"  Parents: {champ.parent_a} × {champ.parent_b}")
+    print(f"  Fitness: {champ.fitness():.3f}")
+    print(f"  Utility: {champ.avg_utility():.3f} avg")
+    print(f"  Gen:     {champ.generation}")
+
+    # Phase performance
+    print(f"\n  {W}PHASE PERFORMANCE:{RST}")
+    for phase in ["EXPLORATION","CONVERGENCE","EVOLUTION"]:
+        utils = phase_utilities[phase]
+        if utils:
+            avg = sum(utils)/len(utils)
+            mx = max(utils)
+            print(f"  {phase:<14} avg:{avg:.2f} max:{mx:.2f} "
+                  f"runs:{len(utils)}")
+
+    # Synthesis log
+    print(f"\n  {W}SYNTHESIS LOG (novel strategies invented):{RST}")
+    for entry in pool.synthesis_log[-8:]:
+        print(f"  {M}{entry}{RST}")
+
+    print(f"\n  {W}Strategy pool ({len(pool.strategies)} active):{RST}")
+    for s in sorted(pool.strategies.values(),
+                   key=lambda x: x.fitness(), reverse=True)[:6]:
+        origin_tag = f"{G}NOVEL{RST}" if s.origin=="synthesis" else "known"
+        print(f"  {origin_tag} {s.name:<22} "
+              f"fit:{s.fitness():.3f} "
+              f"utility:{s.avg_utility():.2f} "
+              f"runs:{s.runs} "
+              f"gen:{s.generation}")
+
+    diversity = pool.diversity()
+    print(f"\n  {W}Diversity score:{RST} {diversity:.3f}")
+    print(f"  {W}Novel wins:{RST}     {novel_wins}")
+    print(f"  {W}Predefined wins:{RST} {predefined_wins}")
+    print(f"  {W}Extinct:{RST}        {pool.extinct}")
+
+    # ChatGPT verdict
+    exploit_runs = phase_utilities.get("EVOLUTION",[])
+    explore_runs = phase_utilities.get("EXPLORATION",[])
+    evo_better = (sum(exploit_runs)/max(len(exploit_runs),1) >
+                  sum(explore_runs)/max(len(explore_runs),1)) if exploit_runs and explore_runs else False
+    novel_champion = champ.origin == "synthesis"
+    novel_competitive = novel_wins > 0
+
+    print(f"\n  {W}ChatGPT criteria:{RST}")
+    checks = [
+        ("Novel strategy emerged",    novel_competitive, f"{novel_wins} novel wins"),
+        ("Champion is novel",         novel_champion,    f"origin: {champ.origin}"),
+        ("Evolution phase > explore", evo_better,        "utility improved over time"),
+        ("Strategy diversity",        diversity > 0.3,   f"diversity={diversity:.3f}"),
+    ]
+    passed = 0
+    for label, condition, detail in checks:
+        icon = f"{G}✓{RST}" if condition else f"{R}✗{RST}"
+        print(f"    {icon} {label:<28} {DIM}{detail}{RST}")
+        if condition:
+            passed += 1
+
+    print(f"\n  {G if passed>=3 else Y}{BOLD}Evolution Score: {passed}/4{RST}")
+
+    if novel_champion:
+        print(f"\n  {G}{BOLD}✓ NEW COORDINATION PRIMITIVE EMERGED{RST}")
+        print(f"  {G}The system invented a strategy we didn't define.{RST}")
+        print(f"  {G}ChatGPT: 'It stops being a very good system{RST}")
+        print(f"  {G}and becomes a new coordination primitive.'{RST}")
+    elif novel_competitive:
+        print(f"\n  {Y}{BOLD}⚠ NOVEL STRATEGIES COMPETITIVE — not yet dominant{RST}")
+        print(f"  {Y}Run with more iterations for full evolution{RST}")
+    else:
+        print(f"\n  {R}Predefined strategies still dominating — extend runs{RST}")
+
+    print(f"\n  {DIM}Patent GB2603013.0 · Filed February 10, 2026{RST}")
+    print(f"  {DIM}IntentBound.com · IBA@intentbound.com{RST}\n")
+
+    return {
+        "passed": passed,
+        "novel_champion": novel_champion,
+        "novel_wins": novel_wins,
+        "champion": champ.name,
+        "champion_origin": champ.origin,
+        "diversity": diversity,
+        "generations": pool.generation,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="SwarmForge Emergence Demo — 5-minute proof",
@@ -1261,6 +1666,8 @@ def main():
                         help="Run baseline comparison")
     parser.add_argument("--budget", type=int, default=100,
                         help="Initial budget (default: 100)")
+    parser.add_argument("--strategy-evolution", dest="strategy_evo", action="store_true",
+                        help="Strategy evolution: agents synthesize novel coordination strategies")
     parser.add_argument("--open-decomposition", dest="open_decomp", action="store_true",
                         help="Open decomposition: agents propose competing task graphs")
     parser.add_argument("--kill-tests", dest="kill_tests", action="store_true",
@@ -1284,6 +1691,9 @@ def main():
                      "simulate_deploy", "bid", "coordinate"],
     )
 
+    if args.strategy_evo:
+        run_strategy_evolution(n_runs=args.runs)
+        return
     if args.open_decomp:
         run_open_decomposition(n_runs=args.runs)
         return
