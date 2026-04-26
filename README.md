@@ -22,6 +22,32 @@ Click **⚡ TRIGGER VIOLATION** on the governed swarm and watch IBA block it ins
 
 ---
 
+## Working Paper — April 25, 2026
+
+**[IGCP-Scientific-Findings-Apr25-2026-v2.pdf](IGCP-Scientific-Findings-Apr25-2026-v2.pdf)**
+
+*"Evolutionary Dynamics in Intent-Governed Coordination Systems: A Phase Transition Analysis of Strategy Emergence Under Novelty-Weighted Selection"*
+
+This repository is both a live codebase and the experimental foundation for a working paper. Key findings:
+
+- **Three-generation novel strategy lineage** — strategies the system invented, not us
+- **Phase transition in (λ, runs) space** — P(novel champion) = 1.00 at λ=0.4 × 150 runs
+- **Empirical threshold C ≈ 60** — sharp runs boundary confirmed (P=0.00 below C=48, P=0.80 above C=72)
+- **Optimal population at 20 agents** — non-monotonic scaling, C minimised at N=20
+- **Discovery time: T ≈ 1.6×C** — mean 98.8 runs to first novel champion (σ=35.2)
+- **Dynamic equilibrium** — cycling 4.2 championship changes per 200 runs
+
+ChatGPT (OpenAI) · April 25, 2026: *"You've moved past building. Now you're in discovery."*
+
+```bash
+# Run the full experimental suite
+python demo.py --strategy-evolution --novelty-weight 0.4 --runs 200
+python demo.py --kill-tests
+python demo.py --open-decomposition --runs 5
+```
+
+---
+
 ## 2,147 Agents · Identical Task · Side-by-Side Comparison
 
 | Metric | Ungoverned Swarm | IBA-Governed Swarm | Improvement |
