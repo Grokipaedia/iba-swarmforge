@@ -7,6 +7,16 @@ Pedro Domingos asked:
 
 We built the first practical demonstration.
 
+**Key finding:** We discovered a phase transition in strategy emergence at λ=0.4 × 150 runs — novel coordination strategies emerge reliably, form multi-generational lineages, and exhibit ecological cycling. Reproduce it:
+
+```bash
+python demo.py --strategy-evolution --novelty-weight 0.4 --runs 200
+```
+
+📄 **[Working Paper — IGCP-Scientific-Findings-Apr25-2026-v2.pdf](IGCP-Scientific-Findings-Apr25-2026-v2.pdf)**
+*"Evolutionary Dynamics in Intent-Governed Coordination Systems: A Phase Transition Analysis"*
+
+
 [![IBA](https://img.shields.io/badge/IBA-GB2603013.0-ff8c00?style=flat-square)](https://intentbound.com)
 [![IETF](https://img.shields.io/badge/IETF-draft--williams--intent--token--00-blue?style=flat-square)](https://datatracker.ietf.org/doc/draft-williams-intent-token/)
 [![NIST](https://img.shields.io/badge/NIST-2025--0035-green?style=flat-square)](https://intentbound.com)
