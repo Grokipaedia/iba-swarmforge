@@ -131,7 +131,7 @@ This repository is part of a broader set of IBA implementations at [github.com/G
 ## Further Reading
 
 - **Patent Home:** [intentbound.com](https://intentbound.com)
-- **Onchain:** [agentialonchain.com](https://agentialonchain.com)
+
 - **IETF Draft:** [datatracker.ietf.org/doc/draft-williams-intent-token](https://datatracker.ietf.org/doc/draft-williams-intent-token/)
 
 ---
