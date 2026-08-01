@@ -145,6 +145,6 @@ All rights reserved. SwarmForge and the IBA enforcement architecture are covered
 ---
 
 **IBA Intent Bound Authorization**
-`IBA@intentbound.com` · `IntentBound.com` · `AgentialOnChain.com`
+`IBA@intentbound.com` · `IntentBound.com` · 
 
 *Patent-pending authorization architecture for agentic AI. Filed February 10, 2026.*
